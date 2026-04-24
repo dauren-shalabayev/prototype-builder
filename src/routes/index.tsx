@@ -1,20 +1,12 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { useMemo, useState } from "react";
+import { forwardRef, useEffect, useId, useMemo, useRef, useState } from "react";
+
+import { downloadTariffCommitteePdf } from "@/lib/tariffCommitteePdf";
 
 import standardTariffsCsv from "../data/standard-tariffs.csv?raw";
 
 export const Route = createFileRoute("/")({
   component: AppFlow,
-  head: () => ({
-    meta: [
-      { title: "Тарифный комитет — заявка на индивидуальные тарифные условия" },
-      {
-        name: "description",
-        content:
-          "Прототип страницы заявки на индивидуальные тарифные условия для Тарифного комитета банка.",
-      },
-    ],
-  }),
 });
 
 // ========================= MOCK CLIENTS =========================
@@ -150,8 +142,7 @@ function AppFlow() {
   };
 
   if (screen === "login") return <LoginScreen onLogin={handleLogin} />;
-  if (screen === "iin")
-    return <IinScreen onSubmit={handleIinSubmit} onLogout={handleLogout} />;
+  if (screen === "iin") return <IinScreen onSubmit={handleIinSubmit} onLogout={handleLogout} />;
   return (
     <TariffRequestPage
       client={client}
@@ -175,10 +166,7 @@ function LoginScreen({ onLogin }: { onLogin: () => void }) {
       setError("Введите логин и пароль");
       return;
     }
-    if (
-      trimmedLogin !== DEMO_OPERATOR_LOGIN ||
-      password !== DEMO_OPERATOR_PASSWORD
-    ) {
+    if (trimmedLogin !== DEMO_OPERATOR_LOGIN || password !== DEMO_OPERATOR_PASSWORD) {
       setError("Неверный табельный номер или пароль");
       return;
     }
@@ -191,20 +179,14 @@ function LoginScreen({ onLogin }: { onLogin: () => void }) {
         <div className="mb-6 flex items-center gap-3">
           <div className="h-12 w-12 rounded-2xl bg-brand-green" />
           <div>
-            <div className="text-[20px] font-semibold leading-tight">
-              Тарифный комитет
-            </div>
-            <div className="text-xs text-muted-foreground">
-              Авторизация оператора
-            </div>
+            <div className="text-[20px] font-semibold leading-tight">Тарифный комитет</div>
+            <div className="text-xs text-muted-foreground">Авторизация оператора</div>
           </div>
         </div>
 
         <form onSubmit={submit} className="space-y-4">
           <div>
-            <label className="mb-2 block text-xs text-muted-foreground">
-              Табельный номер
-            </label>
+            <label className="mb-2 block text-xs text-muted-foreground">Табельный номер</label>
             <input
               value={login}
               onChange={(e) => {
@@ -216,9 +198,7 @@ function LoginScreen({ onLogin }: { onLogin: () => void }) {
             />
           </div>
           <div>
-            <label className="mb-2 block text-xs text-muted-foreground">
-              Пароль
-            </label>
+            <label className="mb-2 block text-xs text-muted-foreground">Пароль</label>
             <input
               type="password"
               value={password}
@@ -278,12 +258,8 @@ function IinScreen({
           <div className="flex items-center gap-3">
             <div className="h-12 w-12 rounded-2xl bg-brand-green" />
             <div>
-              <div className="text-[20px] font-semibold leading-tight">
-                Поиск клиента
-              </div>
-              <div className="text-xs text-muted-foreground">
-                Введите ИИН / БИН клиента
-              </div>
+              <div className="text-[20px] font-semibold leading-tight">Поиск клиента</div>
+              <div className="text-xs text-muted-foreground">Введите ИИН / БИН клиента</div>
             </div>
           </div>
           <button
@@ -296,9 +272,7 @@ function IinScreen({
 
         <form onSubmit={submit} className="space-y-4">
           <div>
-            <label className="mb-2 block text-xs text-muted-foreground">
-              ИИН / БИН
-            </label>
+            <label className="mb-2 block text-xs text-muted-foreground">ИИН / БИН</label>
             <input
               value={iin}
               onChange={(e) => setIin(e.target.value.replace(/\D/g, "").slice(0, 12))}
@@ -340,8 +314,7 @@ function IinScreen({
               987654321098
             </button>
             <div className="mt-2">
-              Любой другой 12-значный ИИН откроет пустую форму для ручного
-              ввода.
+              Любой другой 12-значный ИИН откроет пустую форму для ручного ввода.
             </div>
           </div>
         </form>
@@ -369,13 +342,7 @@ function SectionTitle({ children }: { children: React.ReactNode }) {
   );
 }
 
-function Field({
-  label,
-  children,
-}: {
-  label: string;
-  children: React.ReactNode;
-}) {
+function Field({ label, children }: { label: string; children: React.ReactNode }) {
   return (
     <div>
       <label className="mb-2 block text-xs text-muted-foreground">{label}</label>
@@ -395,22 +362,16 @@ function Select(props: React.SelectHTMLAttributes<HTMLSelectElement>) {
   return <select {...props} className={inputCls} />;
 }
 
-function Textarea(props: React.TextareaHTMLAttributes<HTMLTextAreaElement>) {
-  return (
-    <textarea
-      {...props}
-      className={`${inputCls} min-h-[110px] resize-y`}
-    />
-  );
-}
+const Textarea = forwardRef<HTMLTextAreaElement, React.TextareaHTMLAttributes<HTMLTextAreaElement>>(
+  function Textarea(props, ref) {
+    return <textarea ref={ref} {...props} className={`${inputCls} min-h-[110px] resize-y`} />;
+  },
+);
+Textarea.displayName = "Textarea";
 
 function InfoBox({ k, v, tone }: { k: string; v: string; tone?: "pos" | "neg" }) {
   const toneCls =
-    tone === "pos"
-      ? "text-positive"
-      : tone === "neg"
-        ? "text-[var(--danger)]"
-        : "text-foreground";
+    tone === "pos" ? "text-positive" : tone === "neg" ? "text-[var(--danger)]" : "text-foreground";
   return (
     <div className="rounded-2xl border border-[var(--line)] bg-surface-soft p-3.5">
       <div className="mb-1 text-xs text-muted-foreground">{k}</div>
@@ -448,11 +409,7 @@ function parseRuNum(s: string): number {
 
 /** Пытается выделить % и мин. сумму из ячейки CSV для расчёта скидки */
 function parseTariffTextToCell(raw: string): TariffCell | null {
-  const t = raw
-    .replace(/\r/g, "")
-    .replace(/\n/g, " ")
-    .replace(/\s+/g, " ")
-    .trim();
+  const t = raw.replace(/\r/g, "").replace(/\n/g, " ").replace(/\s+/g, " ").trim();
   if (!t) return null;
   if (!t.includes("%")) {
     const m = t.match(/^([\d\s]+)\s*тенге/i);
@@ -525,7 +482,7 @@ function parseCsvRows(text: string): string[][] {
 function demoMoneyForRow(code: string, name: string, idx: number) {
   let h = idx * 7919 + name.length * 31;
   for (const ch of code) h = (h * 31 + ch.charCodeAt(0)) | 0;
-  const incomeTenge = 50_000 + Math.abs(h) % 500_000;
+  const incomeTenge = 50_000 + (Math.abs(h) % 500_000);
   const costPct = 0.05 + (Math.abs(h) % 150) / 1000;
   const costTenge = Math.round(incomeTenge * costPct);
   return { incomeTenge, costTenge, costPct };
@@ -551,11 +508,7 @@ function parseStandardTariffsCsv(raw: string): ParsedTariffRow[] {
       E: (cols[6] ?? "").trim(),
       F: (cols[7] ?? "").trim(),
     };
-    const { incomeTenge, costTenge, costPct } = demoMoneyForRow(
-      code,
-      name,
-      idx,
-    );
+    const { incomeTenge, costTenge, costPct } = demoMoneyForRow(code, name, idx);
     out.push({
       rowKey: `r${idx}`,
       code,
@@ -572,6 +525,10 @@ function parseStandardTariffsCsv(raw: string): ParsedTariffRow[] {
 }
 
 const STANDARD_TARIFF_ROWS = parseStandardTariffsCsv(standardTariffsCsv);
+
+const TARIFF_SELECTABLE_ROW_KEYS = STANDARD_TARIFF_ROWS.filter((r) => !r.isSection).map(
+  (r) => r.rowKey,
+);
 
 /** Базовые тарифы по категориям (справочник ТК; подстановка если ячейку CSV не разобрать) */
 const TARIFF_CATALOG: Record<TariffCategory, Record<string, TariffCell>> = {
@@ -629,6 +586,19 @@ function formatMoneyRu(n: number): string {
   return `${Math.round(n).toLocaleString("ru-RU")} ₸`;
 }
 
+function formatFileSize(bytes: number): string {
+  if (bytes < 1024) return `${bytes} Б`;
+  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} КБ`;
+  return `${(bytes / (1024 * 1024)).toFixed(1)} МБ`;
+}
+
+function newAttachmentId(): string {
+  if (typeof crypto !== "undefined" && "randomUUID" in crypto) {
+    return crypto.randomUUID();
+  }
+  return `${Date.now()}-${Math.random().toString(36).slice(2, 11)}`;
+}
+
 /** Процент для отображения с запятой */
 function formatPctRu(n: number): string {
   const rounded = Math.round(n * 10000) / 10000;
@@ -650,8 +620,7 @@ function applyDiscountToTariff(
 ): { pct: number; minTenge: number | null } {
   const k = (100 - discountPct) / 100;
   const pct = Math.round(cell.pct * k * 100) / 100;
-  const minTenge =
-    cell.minTenge != null ? Math.round(cell.minTenge * k) : null;
+  const minTenge = cell.minTenge != null ? Math.round(cell.minTenge * k) : null;
   return { pct, minTenge };
 }
 
@@ -717,14 +686,10 @@ function computeBlock2TariffState(
     }
 
     const rawBase = (row.byCat[tariffCategory] ?? "").trim();
-    const catalogCell =
-      row.code && cells[row.code] ? cells[row.code] : undefined;
-    const cellForMath =
-      parseTariffTextToCell(rawBase) ?? catalogCell ?? null;
+    const catalogCell = row.code && cells[row.code] ? cells[row.code] : undefined;
+    const cellForMath = parseTariffTextToCell(rawBase) ?? catalogCell ?? null;
 
-    const baseStr =
-      rawBase ||
-      (cellForMath ? formatBaseTariff(cellForMath) : "—");
+    const baseStr = rawBase || (cellForMath ? formatBaseTariff(cellForMath) : "—");
 
     const costStr = `${formatPctRu(row.costPct)}%`;
     const incomeStr = formatMoneyRu(row.incomeTenge);
@@ -752,9 +717,7 @@ function computeBlock2TariffState(
         minStr = "—";
         maxStr = "—";
       }
-      forecastNum = Math.round(
-        (row.incomeTenge * (100 - clampedDiscount)) / 100,
-      );
+      forecastNum = Math.round((row.incomeTenge * (100 - clampedDiscount)) / 100);
       forecastStr = formatMoneyRu(forecastNum);
     }
 
@@ -798,21 +761,9 @@ function computeBlock2TariffState(
   };
 }
 
-function CalcRow({
-  label,
-  value,
-  tone,
-}: {
-  label: string;
-  value: string;
-  tone?: "pos" | "neg";
-}) {
+function CalcRow({ label, value, tone }: { label: string; value: string; tone?: "pos" | "neg" }) {
   const toneCls =
-    tone === "pos"
-      ? "text-positive"
-      : tone === "neg"
-        ? "text-[var(--danger)]"
-        : "text-foreground";
+    tone === "pos" ? "text-positive" : tone === "neg" ? "text-[var(--danger)]" : "text-foreground";
   return (
     <div className="flex justify-between gap-2.5 border-b border-dashed border-[var(--line)] py-2.5 text-sm last:border-b-0">
       <span className="text-muted-foreground">{label}</span>
@@ -837,34 +788,76 @@ function TariffRequestPage({
   const [validityMonths, setValidityMonths] = useState<3 | 6 | 12>(12);
   const [discountInput, setDiscountInput] = useState("20");
   const [selected, setSelected] = useState<Record<string, boolean>>(() =>
-    Object.fromEntries(
-      STANDARD_TARIFF_ROWS.filter((r) => !r.isSection).map((r) => [
-        r.rowKey,
-        true,
-      ]),
-    ),
+    Object.fromEntries(TARIFF_SELECTABLE_ROW_KEYS.map((k) => [k, false])),
   );
   const [noteTariff, setNoteTariff] = useState("");
+  const [briefJustification, setBriefJustification] = useState("");
+  const [projectDecision, setProjectDecision] = useState("");
+  const projectDecisionRef = useRef<HTMLTextAreaElement>(null);
+  const [monitoringDate, setMonitoringDate] = useState("");
+  const [approver, setApprover] = useState("");
+  const attachmentInputId = useId();
+  const [attachments, setAttachments] = useState<{ id: string; file: File; previewUrl?: string }[]>(
+    [],
+  );
+  const attachmentsRef = useRef(attachments);
+  attachmentsRef.current = attachments;
+
+  useEffect(() => {
+    return () => {
+      for (const a of attachmentsRef.current) {
+        if (a.previewUrl) URL.revokeObjectURL(a.previewUrl);
+      }
+    };
+  }, []);
+
+  const selectAllRef = useRef<HTMLInputElement>(null);
+  const allSelected = useMemo(
+    () => TARIFF_SELECTABLE_ROW_KEYS.every((k) => selected[k]),
+    [selected],
+  );
+  const someSelected = useMemo(
+    () => TARIFF_SELECTABLE_ROW_KEYS.some((k) => selected[k]),
+    [selected],
+  );
+
+  useEffect(() => {
+    const el = selectAllRef.current;
+    if (!el) return;
+    el.indeterminate = someSelected && !allSelected;
+  }, [someSelected, allSelected]);
 
   const b2 = useMemo(
-    () =>
-      computeBlock2TariffState(
-        tariffCategory,
-        validityMonths,
-        discountInput,
-        selected,
-      ),
+    () => computeBlock2TariffState(tariffCategory, validityMonths, discountInput, selected),
     [tariffCategory, validityMonths, discountInput, selected],
   );
 
   const profitTone: "pos" | "neg" | undefined =
     b2.profit > 0 ? "pos" : b2.profit < 0 ? "neg" : undefined;
   const profitStatus =
-    b2.profit > 0
-      ? "Положительная"
-      : b2.profit < 0
-        ? "Отрицательная"
-        : "Нулевая";
+    b2.profit > 0 ? "Положительная" : b2.profit < 0 ? "Отрицательная" : "Нулевая";
+
+  const handleDownloadProjectPdf = () => {
+    void (async () => {
+      try {
+        const decisionFromField =
+          projectDecisionRef.current?.value ?? projectDecision;
+        await downloadTariffCommitteePdf({
+          clientFullName: client.fullName,
+          iinBin: client.iinBin,
+          briefJustification,
+          projectDecision: decisionFromField,
+          monitoringDate,
+          approver,
+        });
+      } catch (err) {
+        console.error(err);
+        window.alert(
+          "Не удалось сформировать PDF. Откройте консоль браузера (F12) для подробностей.",
+        );
+      }
+    })();
+  };
 
   return (
     <div className="min-h-screen bg-background">
@@ -874,9 +867,7 @@ function TariffRequestPage({
           <div className="flex items-center gap-3.5">
             <div className="h-11 w-11 rounded-full bg-[oklch(0.88_0.04_25)]" />
             <div>
-              <h1 className="m-0 text-[28px] font-semibold leading-tight">
-                Тарифный комитет
-              </h1>
+              <h1 className="m-0 text-[28px] font-semibold leading-tight">Тарифный комитет</h1>
               <div className="text-sm text-muted-foreground">
                 Прототип страницы заявки на индивидуальные тарифные условия
               </div>
@@ -911,8 +902,8 @@ function TariffRequestPage({
         {readOnly && (
           <div className="mt-4 flex items-center gap-2.5 rounded-2xl border border-[var(--total-border)] bg-[var(--total-bg)] px-4 py-3 text-sm text-foreground">
             <span className="text-lg">✓</span>
-            Клиент найден в базе. Данные подтянуты автоматически из карточки
-            клиента и недоступны для редактирования.
+            Клиент найден в базе. Данные подтянуты автоматически из карточки клиента и недоступны
+            для редактирования.
           </div>
         )}
         {!readOnly && client.iinBin && (
@@ -928,8 +919,8 @@ function TariffRequestPage({
             <section className="mb-5 rounded-3xl border border-[var(--line)] bg-surface p-6 shadow-[0_8px_24px_rgba(15,23,42,0.04)]">
               <SectionTitle>Блок 1. Информация о клиенте</SectionTitle>
               <p className="-mt-1.5 mb-4 text-[13px] text-muted-foreground">
-                Для действующего клиента данные подтягиваются автоматически из
-                карточки клиента. Для нового клиента доступны для ручного ввода.
+                Для действующего клиента данные подтягиваются автоматически из карточки клиента. Для
+                нового клиента доступны для ручного ввода.
               </p>
 
               <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
@@ -975,18 +966,10 @@ function TariffRequestPage({
                   </Select>
                 </Field>
                 <Field label="Количество персонала">
-                  <Input
-                    placeholder="0"
-                    defaultValue={client.staffCount}
-                    disabled={readOnly}
-                  />
+                  <Input placeholder="0" defaultValue={client.staffCount} disabled={readOnly} />
                 </Field>
                 <Field label="Ежемесячный фонд заработной платы">
-                  <Input
-                    placeholder="0 ₸"
-                    defaultValue={client.payroll}
-                    disabled={readOnly}
-                  />
+                  <Input placeholder="0 ₸" defaultValue={client.payroll} disabled={readOnly} />
                 </Field>
               </div>
 
@@ -1072,9 +1055,7 @@ function TariffRequestPage({
                 <Field label="Выберите категорию тарифа (одна категория)">
                   <Select
                     value={tariffCategory}
-                    onChange={(e) =>
-                      setTariffCategory(e.target.value as TariffCategory)
-                    }
+                    onChange={(e) => setTariffCategory(e.target.value as TariffCategory)}
                   >
                     <option value="A">Тариф категории A</option>
                     <option value="B">Тариф категории B</option>
@@ -1087,9 +1068,7 @@ function TariffRequestPage({
                 <Field label="Выберите срок действия тарифа">
                   <Select
                     value={String(validityMonths)}
-                    onChange={(e) =>
-                      setValidityMonths(Number(e.target.value) as 3 | 6 | 12)
-                    }
+                    onChange={(e) => setValidityMonths(Number(e.target.value) as 3 | 6 | 12)}
                   >
                     <option value="3">3 месяца</option>
                     <option value="6">6 месяцев</option>
@@ -1156,10 +1135,7 @@ function TariffRequestPage({
                       <th className="w-[72px] border-r border-white/15 p-2.5 text-left text-xs">
                         Скидка (%)
                       </th>
-                      <th
-                        colSpan={4}
-                        className="border-r border-white/15 p-2.5 text-left text-xs"
-                      >
+                      <th colSpan={4} className="border-r border-white/15 p-2.5 text-left text-xs">
                         Запрашиваемый тариф
                       </th>
                       <th className="min-w-[120px] p-2.5 text-left text-xs">
@@ -1167,35 +1143,44 @@ function TariffRequestPage({
                       </th>
                     </tr>
                     <tr className="bg-[var(--table-sub)] text-[12px] font-normal text-white">
-                      <th className="border-r border-white/15 p-2" />
-                      <th className="border-r border-white/15 p-2" />
-                      <th className="border-r border-white/15 p-2" />
-                      <th className="border-r border-white/15 p-2" />
-                      <th className="border-r border-white/15 p-2" />
-                      <th className="border-r border-white/15 p-2" />
-                      <th className="border-r border-white/15 p-2" />
-                      <th className="w-[88px] border-r border-white/15 p-2 text-left">
-                        Фикс.
+                      <th className="border-r border-white/15 p-2 text-center align-middle">
+                        <input
+                          ref={selectAllRef}
+                          type="checkbox"
+                          checked={allSelected}
+                          onChange={() =>
+                            setSelected((s) => {
+                              const on = TARIFF_SELECTABLE_ROW_KEYS.every((k) => s[k]);
+                              return Object.fromEntries(
+                                TARIFF_SELECTABLE_ROW_KEYS.map((k) => [k, !on]),
+                              );
+                            })
+                          }
+                          className="h-4 w-4 accent-brand-green"
+                          aria-label="Выделить все операции или снять выделение"
+                          title="Выделить все / снять все"
+                        />
+                        <span className="mt-0.5 block text-[10px] font-normal leading-tight">
+                          все
+                        </span>
                       </th>
-                      <th className="w-[72px] border-r border-white/15 p-2 text-left">
-                        %
-                      </th>
-                      <th className="w-[80px] border-r border-white/15 p-2 text-left">
-                        min
-                      </th>
-                      <th className="w-[72px] border-r border-white/15 p-2 text-left">
-                        max
-                      </th>
+                      <th className="border-r border-white/15 p-2" />
+                      <th className="border-r border-white/15 p-2" />
+                      <th className="border-r border-white/15 p-2" />
+                      <th className="border-r border-white/15 p-2" />
+                      <th className="border-r border-white/15 p-2" />
+                      <th className="border-r border-white/15 p-2" />
+                      <th className="w-[88px] border-r border-white/15 p-2 text-left">Фикс.</th>
+                      <th className="w-[72px] border-r border-white/15 p-2 text-left">%</th>
+                      <th className="w-[80px] border-r border-white/15 p-2 text-left">min</th>
+                      <th className="w-[72px] border-r border-white/15 p-2 text-left">max</th>
                       <th className="p-2" />
                     </tr>
                   </thead>
                   <tbody>
                     {b2.rowsOut.map((r) =>
                       r.row.isSection ? (
-                        <tr
-                          key={r.row.rowKey}
-                          className="bg-[var(--section-row)] font-bold"
-                        >
+                        <tr key={r.row.rowKey} className="bg-[var(--section-row)] font-bold">
                           <td className="border-t border-r border-[var(--line)] p-2" />
                           <td className="border-t border-r border-[var(--line)] p-2" />
                           <td
@@ -1260,10 +1245,7 @@ function TariffRequestPage({
                   </tbody>
                   <tfoot>
                     <tr className="border-t-2 border-[var(--line)] bg-surface-soft text-xs font-semibold">
-                      <td
-                        colSpan={4}
-                        className="border-t border-r border-[var(--line)] p-2.5"
-                      >
+                      <td colSpan={4} className="border-t border-r border-[var(--line)] p-2.5">
                         Итого на весь срок: {validityMonths} мес. (коэф. периода{" "}
                         {b2.periodFactor.toLocaleString("ru-RU", {
                           maximumFractionDigits: 2,
@@ -1282,26 +1264,18 @@ function TariffRequestPage({
                           {formatMoneyRu(b2.sumIncome)}
                         </div>
                       </td>
-                      <td
-                        colSpan={5}
-                        className="border-t border-r border-[var(--line)] p-2.5"
-                      >
+                      <td colSpan={5} className="border-t border-r border-[var(--line)] p-2.5">
                         Запрашиваемый тариф (прогноз доходности)
                         <div className="mt-0.5 font-normal text-muted-foreground">
                           {formatMoneyRu(b2.sumForecast)}
                         </div>
                         <div className="mt-2 text-foreground">
-                          Прогноз недополученного дохода:{" "}
-                          {formatMoneyRu(b2.lost)}
+                          Прогноз недополученного дохода: {formatMoneyRu(b2.lost)}
                         </div>
                         <div className="mt-1">
                           Прогноз рентабельности:{" "}
                           <span
-                            className={
-                              b2.profit >= 0
-                                ? "text-positive"
-                                : "text-[var(--danger)]"
-                            }
+                            className={b2.profit >= 0 ? "text-positive" : "text-[var(--danger)]"}
                           >
                             {b2.profit > 0 ? "+" : ""}
                             {formatMoneyRu(b2.profit)}
@@ -1320,33 +1294,117 @@ function TariffRequestPage({
               </div>
 
               <p className="mt-2 text-xs leading-relaxed text-muted-foreground">
-                Таблица строится по всем строкам файла «Стандартные тарифы»
-                (импорт CSV). «Базовый тариф» — ячейка выбранной категории (D–F)
-                из файла; при необходимости для расчёта скидки подставляется
-                числовой справочник по коду операции. «Себестоимость» и «Текущий
-                доход» в прототипе демонстрационные. «Запрашиваемый тариф» и
-                «Скидка (%)» считаются там, где из текста тарифа удаётся извлечь
-                проценты и минимумы; иначе в колонках %/min показывается «—».
-                Неотмеченные операции после отправки заявки не отображаются
-                следующим участникам маршрута.
+                Таблица строится по всем строкам файла «Стандартные тарифы» (импорт CSV). «Базовый
+                тариф» — ячейка выбранной категории (D–F) из файла; при необходимости для расчёта
+                скидки подставляется числовой справочник по коду операции. «Себестоимость» и
+                «Текущий доход» в прототипе демонстрационные. «Запрашиваемый тариф» и «Скидка (%)»
+                считаются там, где из текста тарифа удаётся извлечь проценты и минимумы; иначе в
+                колонках %/min показывается «—». Неотмеченные операции после отправки заявки не
+                отображаются следующим участникам маршрута.
               </p>
 
-              <div className="mt-3 rounded-2xl border border-dashed border-[var(--line)] bg-[oklch(0.99_0.01_250)] p-4">
-                <strong className="text-foreground">Прикрепить документ</strong>
-                <div className="mt-1 text-xs leading-relaxed text-muted-foreground">
-                  При необходимости вложите оборотно-сальдовую ведомость,
-                  выписку по счету или иные финансовые документы, подтверждающие
-                  расходы клиента.
+              <div className="relative mt-3 rounded-2xl border border-dashed border-[var(--line)] bg-[oklch(0.99_0.01_250)] p-4">
+                <div className="flex flex-wrap items-center justify-between gap-3">
+                  <strong className="text-foreground">Прикрепить документ</strong>
+                  <label
+                    htmlFor={attachmentInputId}
+                    className="inline-flex cursor-pointer select-none rounded-xl border border-[var(--line)] bg-white px-4 py-2 text-sm font-semibold text-foreground shadow-sm transition-colors hover:bg-surface-soft"
+                  >
+                    Обзор…
+                  </label>
                 </div>
+                <input
+                  id={attachmentInputId}
+                  type="file"
+                  multiple
+                  aria-label="Выбор файлов для вложения"
+                  className="fixed left-0 top-0 -z-10 h-px w-px overflow-hidden opacity-0"
+                  onChange={(e) => {
+                    const list = e.target.files;
+                    if (!list?.length) return;
+                    setAttachments((prev) => [
+                      ...prev,
+                      ...Array.from(list).map((file) => {
+                        const id = newAttachmentId();
+                        const previewUrl = file.type.startsWith("image/")
+                          ? URL.createObjectURL(file)
+                          : undefined;
+                        return { id, file, previewUrl };
+                      }),
+                    ]);
+                    e.target.value = "";
+                  }}
+                />
+                <div className="mt-1 text-xs leading-relaxed text-muted-foreground">
+                  При необходимости вложите оборотно-сальдовую ведомость, выписку по счету или иные
+                  финансовые документы, подтверждающие расходы клиента. Кнопка «Обзор…» открывает
+                  выбор файлов; ниже показывается краткий обзор вложений.
+                </div>
+                {attachments.length > 0 ? (
+                  <ul className="mt-3 space-y-2">
+                    {attachments.map(({ id, file, previewUrl }) => {
+                      const extPart = file.name.includes(".")
+                        ? file.name.split(".").pop()?.toUpperCase()
+                        : "";
+                      const ext = extPart || "FILE";
+                      return (
+                        <li
+                          key={id}
+                          className="flex items-start gap-3 rounded-xl border border-[var(--line)] bg-white p-3 text-sm shadow-sm"
+                        >
+                          {previewUrl ? (
+                            <img
+                              src={previewUrl}
+                              alt=""
+                              className="h-14 w-14 shrink-0 rounded-lg border border-[var(--line)] object-cover"
+                            />
+                          ) : (
+                            <div className="flex h-14 w-14 shrink-0 items-center justify-center rounded-lg border border-dashed border-[var(--line)] bg-surface-soft text-[10px] font-bold text-muted-foreground">
+                              {ext}
+                            </div>
+                          )}
+                          <div className="min-w-0 flex-1">
+                            <div className="truncate font-medium text-foreground">{file.name}</div>
+                            <div className="mt-0.5 text-xs text-muted-foreground">
+                              {formatFileSize(file.size)}
+                              {file.type ? ` · ${file.type}` : ""}
+                              {file.lastModified
+                                ? ` · изменён ${new Date(file.lastModified).toLocaleString("ru-RU", { dateStyle: "short", timeStyle: "short" })}`
+                                : ""}
+                            </div>
+                          </div>
+                          <button
+                            type="button"
+                            className="shrink-0 rounded-lg border border-[var(--line)] bg-surface-soft px-2.5 py-1.5 text-xs font-semibold text-foreground transition-colors hover:bg-white"
+                            onClick={() =>
+                              setAttachments((prev) => {
+                                const hit = prev.find((a) => a.id === id);
+                                if (hit?.previewUrl) {
+                                  URL.revokeObjectURL(hit.previewUrl);
+                                }
+                                return prev.filter((a) => a.id !== id);
+                              })
+                            }
+                          >
+                            Удалить
+                          </button>
+                        </li>
+                      );
+                    })}
+                  </ul>
+                ) : (
+                  <p className="mt-3 rounded-xl border border-dashed border-[var(--line)] bg-white/60 py-6 text-center text-xs text-muted-foreground">
+                    Файлы не выбраны — нажмите «Обзор…», чтобы добавить вложения.
+                  </p>
+                )}
               </div>
             </section>
 
-            {/* Блок 3 — умный блок расчёта, под блоком 2 */}
+            {/* Блок 3 — прогнозные данные, под блоком 2 */}
             <aside className="mb-5 rounded-3xl border border-[var(--line)] bg-surface p-5 shadow-[0_12px_28px_rgba(15,23,42,0.07)]">
-              <SectionTitle>Блок 3. Умный блок расчёта</SectionTitle>
+              <SectionTitle>Блок 3. Прогнозные данные</SectionTitle>
               <div className="text-xs text-muted-foreground">
-                Сводный калькулятор по выбранным операциям и сроку действия
-                тарифа.
+                Сводный калькулятор по выбранным операциям и сроку действия тарифа.
               </div>
 
               <div className="my-4 rounded-2xl border border-[var(--total-border)] bg-[var(--total-bg)] p-4">
@@ -1358,10 +1416,7 @@ function TariffRequestPage({
                 </div>
               </div>
 
-              <CalcRow
-                label="Себестоимость на весь срок"
-                value={formatMoneyRu(b2.sumCost)}
-              />
+              <CalcRow label="Себестоимость на весь срок" value={formatMoneyRu(b2.sumCost)} />
               <CalcRow
                 label="Стандартный тариф / текущий доход"
                 value={formatMoneyRu(b2.sumIncome)}
@@ -1370,20 +1425,13 @@ function TariffRequestPage({
                 label="Запрашиваемый тариф (прогноз)"
                 value={formatMoneyRu(b2.sumForecast)}
               />
-              <CalcRow
-                label="Прогноз недополученного дохода"
-                value={formatMoneyRu(b2.lost)}
-              />
+              <CalcRow label="Прогноз недополученного дохода" value={formatMoneyRu(b2.lost)} />
               <CalcRow
                 label="Прогноз рентабельности"
                 value={`${b2.profit > 0 ? "+" : ""}${formatMoneyRu(b2.profit)}`}
                 tone={profitTone}
               />
-              <CalcRow
-                label="Статус рентабельности РКО"
-                value={profitStatus}
-                tone={profitTone}
-              />
+              <CalcRow label="Статус рентабельности РКО" value={profitStatus} tone={profitTone} />
 
               <div className="mt-4 rounded-2xl border border-dashed border-[var(--line)] bg-[oklch(0.99_0.01_250)] p-4">
                 <strong className="text-foreground">Контрольные проверки</strong>
@@ -1403,19 +1451,55 @@ function TariffRequestPage({
               <SectionTitle>Блок 4. Обоснование</SectionTitle>
               <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
                 <Field label="Краткое обоснование">
-                  <Textarea placeholder="Опишите цель, экономический эффект, значимость клиента и причину запрашиваемого отклонения от базовых тарифов" />
+                  <Textarea
+                    placeholder="Опишите цель, экономический эффект, значимость клиента и причину запрашиваемого отклонения от базовых тарифов"
+                    value={briefJustification}
+                    onChange={(e) => setBriefJustification(e.target.value)}
+                    rows={6}
+                  />
                 </Field>
                 <div>
                   <Field label="Проект решения ТК">
-                    <Textarea placeholder="Текст проекта решения" />
+                    <Textarea
+                      ref={projectDecisionRef}
+                      placeholder="Текст проекта решения"
+                      value={projectDecision}
+                      onChange={(e) => setProjectDecision(e.target.value)}
+                      rows={8}
+                    />
                   </Field>
+                  <div className="mt-2 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+                    <p className="text-xs leading-relaxed text-muted-foreground">
+                      PDF формируется в браузере из полей блока 4 и открывается как загрузка по
+                      временной ссылке (blob).
+                    </p>
+                    <button
+                      type="button"
+                      onClick={handleDownloadProjectPdf}
+                      className="shrink-0 text-left text-sm font-semibold text-brand-green-dark underline decoration-2 underline-offset-4 hover:opacity-90"
+                    >
+                      Скачать PDF «Проект решения ТК»
+                    </button>
+                  </div>
                   <div className="mt-4 grid grid-cols-1 gap-4 md:grid-cols-2">
                     <Field label="Дата мониторинга">
-                      <Input placeholder="Не более 12 месяцев" />
+                      <Input
+                        placeholder="Не более 12 месяцев"
+                        value={monitoringDate}
+                        onChange={(e) => setMonitoringDate(e.target.value)}
+                      />
                     </Field>
                     <Field label="Визирующий">
-                      <Select>
-                        <option>Выбрать согласующего</option>
+                      <Select
+                        value={approver}
+                        onChange={(e) => setApprover(e.target.value)}
+                      >
+                        <option value="">Выбрать согласующего</option>
+                        <option value="Заместитель директора филиала">Заместитель директора филиала</option>
+                        <option value="Начальник управления РКО">Начальник управления РКО</option>
+                        <option value="Директор департамента корпоративного бизнеса">
+                          Директор департамента корпоративного бизнеса
+                        </option>
                       </Select>
                     </Field>
                   </div>
@@ -1423,10 +1507,9 @@ function TariffRequestPage({
               </div>
 
               <div className="mt-4 rounded-2xl border border-[oklch(0.85_0.08_85)] bg-[oklch(0.99_0.03_85)] p-3.5 text-sm leading-relaxed text-foreground">
-                <strong>Маршрут согласования:</strong> руководитель инициатора →
-                секретарь Комитета → члены Тарифного комитета. На этапе
-                голосования доступны действия: «За», «Против», «Запросить доп.
-                информацию». При запросе доп. информации создается подзадача
+                <strong>Маршрут согласования:</strong> руководитель инициатора → секретарь Комитета
+                → члены Тарифного комитета. На этапе голосования доступны действия: «За», «Против»,
+                «Запросить доп. информацию». При запросе доп. информации создается подзадача
                 инициатору с контролем срока исполнения.
               </div>
 
