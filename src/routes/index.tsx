@@ -1,26 +1,501 @@
 import { createFileRoute } from "@tanstack/react-router";
 
 export const Route = createFileRoute("/")({
-  component: Index,
+  component: TariffRequestPage,
+  head: () => ({
+    meta: [
+      { title: "Тарифный комитет — заявка на индивидуальные тарифные условия" },
+      {
+        name: "description",
+        content:
+          "Прототип страницы заявки на индивидуальные тарифные условия для Тарифного комитета банка.",
+      },
+    ],
+  }),
 });
 
-// IMPORTANT: Replace this placeholder. For sites with multiple pages (About, Services, Contact, etc.),
-// create separate route files (about.tsx, services.tsx, contact.tsx) — don't put all pages in this file.
-function PlaceholderIndex() {
+function MetaCard({ label, value }: { label: string; value: string }) {
   return (
-    <div
-      className="flex min-h-screen items-center justify-center"
-      style={{ backgroundColor: "#fcfbf8" }}
-    >
-      <img
-        data-lovable-blank-page-placeholder="REMOVE_THIS"
-        src="https://cdn.gpteng.co/blank-app-v1.svg"
-        alt="Your app will live here!"
-      />
+    <div className="rounded-2xl border border-[var(--line)] bg-surface-soft px-4 py-3.5">
+      <div className="mb-1 text-xs text-muted-foreground">{label}</div>
+      <div className="text-base font-semibold text-foreground">{value}</div>
     </div>
   );
 }
 
-function Index() {
-  return <PlaceholderIndex />;
+function SectionTitle({ children }: { children: React.ReactNode }) {
+  return (
+    <h2 className="mb-4 flex items-center gap-2.5 text-2xl font-semibold text-foreground">
+      <span className="block h-7 w-2 rounded-md bg-accent-yellow" />
+      {children}
+    </h2>
+  );
+}
+
+function Field({
+  label,
+  children,
+}: {
+  label: string;
+  children: React.ReactNode;
+}) {
+  return (
+    <div>
+      <label className="mb-2 block text-xs text-muted-foreground">{label}</label>
+      {children}
+    </div>
+  );
+}
+
+const inputCls =
+  "w-full rounded-xl border border-[var(--line)] bg-white px-3.5 py-3 text-sm text-foreground outline-none focus:border-brand-green";
+
+function Input(props: React.InputHTMLAttributes<HTMLInputElement>) {
+  return <input {...props} className={inputCls} />;
+}
+
+function Select(props: React.SelectHTMLAttributes<HTMLSelectElement>) {
+  return <select {...props} className={inputCls} />;
+}
+
+function Textarea(props: React.TextareaHTMLAttributes<HTMLTextAreaElement>) {
+  return (
+    <textarea
+      {...props}
+      className={`${inputCls} min-h-[110px] resize-y`}
+    />
+  );
+}
+
+function InfoBox({ k, v, tone }: { k: string; v: string; tone?: "pos" | "neg" }) {
+  const toneCls =
+    tone === "pos"
+      ? "text-positive"
+      : tone === "neg"
+        ? "text-[var(--danger)]"
+        : "text-foreground";
+  return (
+    <div className="rounded-2xl border border-[var(--line)] bg-surface-soft p-3.5">
+      <div className="mb-1 text-xs text-muted-foreground">{k}</div>
+      <div className={`text-lg font-bold ${toneCls}`}>{v}</div>
+    </div>
+  );
+}
+
+type Row = {
+  checked: boolean;
+  no: string;
+  name: string;
+  base: string;
+  cost: string;
+  income: string;
+  fix: string;
+  pct: string;
+  min: string;
+  max: string;
+  forecast: string;
+};
+
+const rows: Row[] = [
+  {
+    checked: true,
+    no: "4.1",
+    name: "Прием наличных денег в тенге, с учетом НДС",
+    base: "0,3% от суммы, мин. 300 ₸",
+    cost: "0,08%",
+    income: "410 000 ₸",
+    fix: "—",
+    pct: "0,24%",
+    min: "240 ₸",
+    max: "—",
+    forecast: "328 000 ₸",
+  },
+  {
+    checked: false,
+    no: "4.2",
+    name: "Прием наличной иностранной валюты, кроме RUB",
+    base: "0,35% от суммы, мин. 900 ₸",
+    cost: "0,11%",
+    income: "190 000 ₸",
+    fix: "—",
+    pct: "0,28%",
+    min: "720 ₸",
+    max: "—",
+    forecast: "160 000 ₸",
+  },
+  {
+    checked: true,
+    no: "4.2.1",
+    name: "Прием наличных денег в российских рублях",
+    base: "0,35% от суммы, мин. 900 ₸",
+    cost: "0,12%",
+    income: "70 000 ₸",
+    fix: "—",
+    pct: "0,30%",
+    min: "900 ₸",
+    max: "—",
+    forecast: "62 000 ₸",
+  },
+  {
+    checked: true,
+    no: "4.3",
+    name: "Прием и пересчет проинкассированной выручки",
+    base: "0,25%, мин. 900 ₸",
+    cost: "0,09%",
+    income: "255 000 ₸",
+    fix: "—",
+    pct: "0,20%",
+    min: "720 ₸",
+    max: "—",
+    forecast: "212 000 ₸",
+  },
+];
+
+function CalcRow({
+  label,
+  value,
+  tone,
+}: {
+  label: string;
+  value: string;
+  tone?: "pos" | "neg";
+}) {
+  const toneCls =
+    tone === "pos"
+      ? "text-positive"
+      : tone === "neg"
+        ? "text-[var(--danger)]"
+        : "text-foreground";
+  return (
+    <div className="flex justify-between gap-2.5 border-b border-dashed border-[var(--line)] py-2.5 text-sm last:border-b-0">
+      <span className="text-muted-foreground">{label}</span>
+      <strong className={`text-[15px] font-semibold ${toneCls}`}>{value}</strong>
+    </div>
+  );
+}
+
+function TariffRequestPage() {
+  return (
+    <div className="min-h-screen bg-background">
+      <div className="mx-auto max-w-[1440px] p-6">
+        {/* Topbar */}
+        <header className="flex flex-col items-start justify-between gap-6 rounded-3xl border border-[var(--line)] bg-surface px-7 py-6 shadow-[0_8px_24px_rgba(15,23,42,0.05)] lg:flex-row">
+          <div className="flex items-center gap-3.5">
+            <div className="h-11 w-11 rounded-full bg-[oklch(0.88_0.04_25)]" />
+            <div>
+              <h1 className="m-0 text-[28px] font-semibold leading-tight">
+                Тарифный комитет
+              </h1>
+              <div className="text-sm text-muted-foreground">
+                Прототип страницы заявки на индивидуальные тарифные условия
+              </div>
+            </div>
+          </div>
+          <div className="grid w-full grid-cols-1 gap-3 sm:grid-cols-2 lg:w-auto lg:min-w-[620px] lg:grid-cols-3">
+            <MetaCard label="ФИО" value="Карманова Альбина Руслановна" />
+            <MetaCard label="Номер заявки" value="100347604082" />
+            <MetaCard label="Дата заявки" value="10.03.2026" />
+            <MetaCard label="Табельный номер" value="00062861" />
+            <MetaCard label="Статус" value="Черновик" />
+            <MetaCard label="Этап" value="Заполнение инициатором" />
+          </div>
+        </header>
+
+        <div className="mt-6 grid grid-cols-1 items-start gap-6 xl:grid-cols-[1fr_360px]">
+          <main>
+            {/* Block 1 */}
+            <section className="mb-5 rounded-3xl border border-[var(--line)] bg-surface p-6 shadow-[0_8px_24px_rgba(15,23,42,0.04)]">
+              <SectionTitle>Блок 1. Информация о клиенте</SectionTitle>
+              <p className="-mt-1.5 mb-4 text-[13px] text-muted-foreground">
+                Для действующего клиента данные подтягиваются автоматически из
+                карточки клиента. Для нового клиента доступны для ручного ввода.
+              </p>
+
+              <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+                <Field label="Категория клиента">
+                  <div className="flex min-h-[46px] flex-wrap items-center gap-3 rounded-xl border border-[var(--line)] bg-white px-3 py-2.5">
+                    <label className="inline-flex cursor-pointer items-center gap-2 rounded-full border border-[var(--line)] bg-surface-soft px-3 py-1.5 text-sm">
+                      <input type="radio" name="cat" defaultChecked /> Новый клиент
+                    </label>
+                    <label className="inline-flex cursor-pointer items-center gap-2 rounded-full border border-[var(--line)] bg-surface-soft px-3 py-1.5 text-sm">
+                      <input type="radio" name="cat" /> Действующий клиент
+                    </label>
+                  </div>
+                </Field>
+                <Field label="ИИН / БИН">
+                  <Input placeholder="Введите ИИН/БИН" />
+                </Field>
+              </div>
+
+              <div className="mt-4 grid grid-cols-1 gap-4 md:grid-cols-3">
+                <Field label="Полное наименование клиента">
+                  <Input placeholder="ТОО / ИП / наименование клиента" />
+                </Field>
+                <Field label="Вид деятельности">
+                  <Input placeholder="Например: торговля, услуги, ВЭД" />
+                </Field>
+                <Field label="Дата начала обслуживания в Банке">
+                  <Input placeholder="ДД.ММ.ГГГГ" />
+                </Field>
+              </div>
+
+              <div className="mt-4 grid grid-cols-1 gap-4 md:grid-cols-3">
+                <Field label="Связанность с банком">
+                  <Select>
+                    <option>Не выбрано</option>
+                    <option>Есть связанность</option>
+                    <option>Нет связанности</option>
+                  </Select>
+                </Field>
+                <Field label="Количество персонала">
+                  <Input placeholder="0" />
+                </Field>
+                <Field label="Ежемесячный фонд заработной платы">
+                  <Input placeholder="0 ₸" />
+                </Field>
+              </div>
+
+              <div className="mt-4 grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-4">
+                <Field label="Обслуживающая страховая компания">
+                  <Select>
+                    <option>Выбрать из справочника</option>
+                  </Select>
+                </Field>
+                <Field label="РКО">
+                  <Input placeholder="Доход / объем" />
+                </Field>
+                <Field label="Документарные операции">
+                  <Input placeholder="Доход / объем" />
+                </Field>
+                <Field label="Кредиты">
+                  <Input placeholder="Доход / объем" />
+                </Field>
+              </div>
+
+              <div className="mt-4 grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-4">
+                <Field label="Дилинг">
+                  <Input placeholder="Доход / объем" />
+                </Field>
+                <Field label="Эквайринг">
+                  <Input placeholder="Доход / объем" />
+                </Field>
+                <Field label="Корпоративные карты">
+                  <Input placeholder="Доход / объем" />
+                </Field>
+                <Field label="Депозиты / остатки на ТС">
+                  <Input placeholder="Доход / остаток" />
+                </Field>
+              </div>
+
+              <div className="mt-3 grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4">
+                <InfoBox k="Доходность клиента по кошельку" v="1 850 000 ₸" />
+                <InfoBox k="Доходность по группе" v="2 430 000 ₸" />
+                <InfoBox k="Доходы по кросс-продуктам" v="710 000 ₸" />
+                <InfoBox k="Рентабельность клиента" v="Положительная" tone="pos" />
+              </div>
+            </section>
+
+            {/* Block 2 */}
+            <section className="mb-5 rounded-3xl border border-[var(--line)] bg-surface p-6 shadow-[0_8px_24px_rgba(15,23,42,0.04)]">
+              <SectionTitle>Блок 2. Запрашиваемые условия</SectionTitle>
+
+              <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
+                <Field label="Категория тарифа">
+                  <Select>
+                    <option>Тариф категории A</option>
+                    <option>Тариф категории B</option>
+                    <option>Тариф категории C</option>
+                    <option>Тариф категории D</option>
+                    <option>Тариф категории E</option>
+                    <option>Тариф категории F</option>
+                  </Select>
+                </Field>
+                <Field label="Срок действия тарифа">
+                  <Select defaultValue="12">
+                    <option value="3">3 месяца</option>
+                    <option value="6">6 месяцев</option>
+                    <option value="12">12 месяцев</option>
+                  </Select>
+                </Field>
+                <Field label="Метод расчета">
+                  <Select>
+                    <option>Скидка</option>
+                    <option>Ручной ввод</option>
+                  </Select>
+                </Field>
+              </div>
+
+              <div className="mt-4 grid grid-cols-1 gap-4 md:grid-cols-3">
+                <Field label="Размер скидки, %">
+                  <Input defaultValue="20" />
+                </Field>
+                <Field label="Горизонт прогноза">
+                  <Input defaultValue="12 месяцев" />
+                </Field>
+                <Field label="Примечание">
+                  <Input placeholder="Краткий комментарий к расчету" />
+                </Field>
+              </div>
+
+              <div className="mt-5 overflow-auto">
+                <table className="w-full overflow-hidden rounded-2xl border border-[var(--line)] text-sm">
+                  <thead>
+                    <tr className="bg-[var(--table-head)] text-white">
+                      <th className="w-[72px] border-r border-white/15 p-3 text-left">Выбр.</th>
+                      <th className="w-[70px] border-r border-white/15 p-3 text-left">№</th>
+                      <th className="border-r border-white/15 p-3 text-left">Наименование операции</th>
+                      <th className="w-[150px] border-r border-white/15 p-3 text-left">Базовый тариф</th>
+                      <th className="w-[120px] border-r border-white/15 p-3 text-left">Себестоимость</th>
+                      <th className="w-[130px] border-r border-white/15 p-3 text-left">Текущий доход</th>
+                      <th colSpan={4} className="border-r border-white/15 p-3 text-left">
+                        Запрашиваемый тариф
+                      </th>
+                      <th className="w-[170px] p-3 text-left">Прогноз доходности</th>
+                    </tr>
+                    <tr className="bg-[var(--table-sub)] text-[13px] font-normal text-white">
+                      <th className="border-r border-white/15 p-2.5"></th>
+                      <th className="border-r border-white/15 p-2.5"></th>
+                      <th className="border-r border-white/15 p-2.5"></th>
+                      <th className="border-r border-white/15 p-2.5"></th>
+                      <th className="border-r border-white/15 p-2.5"></th>
+                      <th className="border-r border-white/15 p-2.5"></th>
+                      <th className="w-[120px] border-r border-white/15 p-2.5 text-left">Фикс.</th>
+                      <th className="w-[80px] border-r border-white/15 p-2.5 text-left">%</th>
+                      <th className="w-[90px] border-r border-white/15 p-2.5 text-left">min</th>
+                      <th className="w-[90px] border-r border-white/15 p-2.5 text-left">max</th>
+                      <th className="p-2.5"></th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    <tr className="bg-[var(--section-row)] font-bold">
+                      <td className="border-t border-r border-[var(--line)] p-2.5"></td>
+                      <td className="border-t border-r border-[var(--line)] p-2.5"></td>
+                      <td colSpan={9} className="border-t border-[var(--line)] p-2.5">
+                        Раздел 1. Счета клиента: открытие, ведение и закрытие
+                      </td>
+                    </tr>
+                    {rows.map((r) => (
+                      <tr key={r.no} className="bg-white">
+                        <td className="w-10 border-t border-r border-[var(--line)] p-2.5 text-center text-lg text-positive">
+                          {r.checked ? "✓" : ""}
+                        </td>
+                        <td className="border-t border-r border-[var(--line)] p-2.5">{r.no}</td>
+                        <td className="border-t border-r border-[var(--line)] p-2.5">{r.name}</td>
+                        <td className="border-t border-r border-[var(--line)] p-2.5">{r.base}</td>
+                        <td className="border-t border-r border-[var(--line)] p-2.5">{r.cost}</td>
+                        <td className="border-t border-r border-[var(--line)] p-2.5">{r.income}</td>
+                        <td className="border-t border-r border-[var(--line)] p-2.5">{r.fix}</td>
+                        <td className="border-t border-r border-[var(--line)] p-2.5">{r.pct}</td>
+                        <td className="border-t border-r border-[var(--line)] p-2.5">{r.min}</td>
+                        <td className="border-t border-r border-[var(--line)] p-2.5">{r.max}</td>
+                        <td className="border-t border-[var(--line)] p-2.5">{r.forecast}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+
+              <p className="mt-2 text-xs leading-relaxed text-muted-foreground">
+                Столбцы «Базовый тариф» и «Себестоимость» формируются
+                автоматически по выбранной категории тарифа и недоступны для
+                редактирования. Неотмеченные операции не уходят далее по
+                маршруту согласования.
+              </p>
+
+              <div className="mt-3 rounded-2xl border border-dashed border-[var(--line)] bg-[oklch(0.99_0.01_250)] p-4">
+                <strong className="text-foreground">Прикрепить документ</strong>
+                <div className="mt-1 text-xs leading-relaxed text-muted-foreground">
+                  При необходимости вложите оборотно-сальдовую ведомость,
+                  выписку по счету или иные финансовые документы, подтверждающие
+                  расходы клиента.
+                </div>
+              </div>
+            </section>
+
+            {/* Block 3 */}
+            <section className="mb-5 rounded-3xl border border-[var(--line)] bg-surface p-6 shadow-[0_8px_24px_rgba(15,23,42,0.04)]">
+              <SectionTitle>Блок 3. Обоснование</SectionTitle>
+              <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+                <Field label="Краткое обоснование">
+                  <Textarea placeholder="Опишите цель, экономический эффект, значимость клиента и причину запрашиваемого отклонения от базовых тарифов" />
+                </Field>
+                <div>
+                  <Field label="Проект решения ТК">
+                    <Textarea placeholder="Текст проекта решения" />
+                  </Field>
+                  <div className="mt-4 grid grid-cols-1 gap-4 md:grid-cols-2">
+                    <Field label="Дата мониторинга">
+                      <Input placeholder="Не более 12 месяцев" />
+                    </Field>
+                    <Field label="Визирующий">
+                      <Select>
+                        <option>Выбрать согласующего</option>
+                      </Select>
+                    </Field>
+                  </div>
+                </div>
+              </div>
+
+              <div className="mt-4 rounded-2xl border border-[oklch(0.85_0.08_85)] bg-[oklch(0.99_0.03_85)] p-3.5 text-sm leading-relaxed text-foreground">
+                <strong>Маршрут согласования:</strong> руководитель инициатора →
+                секретарь Комитета → члены Тарифного комитета. На этапе
+                голосования доступны действия: «За», «Против», «Запросить доп.
+                информацию». При запросе доп. информации создается подзадача
+                инициатору с контролем срока исполнения.
+              </div>
+
+              <div className="mt-4 flex flex-wrap gap-3.5">
+                <button className="cursor-pointer rounded-2xl border-none bg-brand-green px-5 py-3.5 text-[15px] font-bold text-white transition-opacity hover:opacity-90">
+                  Отправить на согласование
+                </button>
+                <button className="cursor-pointer rounded-2xl border border-[var(--line)] bg-white px-5 py-3.5 text-[15px] font-bold text-foreground transition-colors hover:bg-surface-soft">
+                  Сохранить
+                </button>
+                <button className="cursor-pointer rounded-2xl border border-dashed border-[var(--line)] bg-surface-soft px-5 py-3.5 text-[15px] font-bold text-foreground transition-colors hover:bg-white">
+                  Предварительный просмотр
+                </button>
+              </div>
+            </section>
+          </main>
+
+          {/* Smart card */}
+          <aside className="rounded-3xl border border-[var(--line)] bg-surface p-5 shadow-[0_12px_28px_rgba(15,23,42,0.07)] xl:sticky xl:top-5">
+            <h3 className="mb-3 text-[22px] font-semibold">Умный блок расчета</h3>
+            <div className="text-xs text-muted-foreground">
+              Сводный калькулятор по выбранным операциям и сроку действия
+              тарифа.
+            </div>
+
+            <div className="my-4 rounded-2xl border border-[var(--total-border)] bg-[var(--total-bg)] p-4">
+              <div className="text-xs text-muted-foreground">
+                Прогноз доходности с учетом скидки
+              </div>
+              <div className="mt-1 text-3xl font-extrabold text-brand-green-dark">
+                762 000 ₸
+              </div>
+            </div>
+
+            <CalcRow label="Себестоимость на весь срок" value="186 000 ₸" />
+            <CalcRow label="Стандартный тариф / текущий доход" value="925 000 ₸" />
+            <CalcRow label="Запрашиваемый тариф" value="762 000 ₸" />
+            <CalcRow label="Недополученный доход" value="163 000 ₸" />
+            <CalcRow label="Прогноз рентабельности" value="+576 000 ₸" tone="pos" />
+            <CalcRow label="Статус рентабельности" value="Положительная" tone="pos" />
+
+            <div className="mt-4 rounded-2xl border border-dashed border-[var(--line)] bg-[oklch(0.99_0.01_250)] p-4">
+              <strong className="text-foreground">Контрольные проверки</strong>
+              <div className="mt-1 text-xs leading-relaxed text-muted-foreground">
+                • выбрана только 1 категория тарифа
+                <br />
+                • срок мониторинга не превышает 12 месяцев
+                <br />
+                • заполнено обоснование
+                <br />• приложен документ при отклонении выше порога
+              </div>
+            </div>
+          </aside>
+        </div>
+      </div>
+    </div>
+  );
 }
