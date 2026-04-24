@@ -709,7 +709,7 @@ function TariffRequestPage({
             <section className="mb-5 rounded-3xl border border-[var(--line)] bg-surface p-6 shadow-[0_8px_24px_rgba(15,23,42,0.04)]">
               <SectionTitle>Блок 2. Запрашиваемые условия</SectionTitle>
 
-              <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
+              <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
                 <Field label="Категория тарифа">
                   <Select>
                     <option>Тариф категории A</option>
@@ -725,12 +725,6 @@ function TariffRequestPage({
                     <option value="3">3 месяца</option>
                     <option value="6">6 месяцев</option>
                     <option value="12">12 месяцев</option>
-                  </Select>
-                </Field>
-                <Field label="Метод расчета">
-                  <Select>
-                    <option>Скидка</option>
-                    <option>Ручной ввод</option>
                   </Select>
                 </Field>
               </div>
