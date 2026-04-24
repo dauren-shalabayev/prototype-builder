@@ -574,28 +574,6 @@ function TariffRequestPage({
               </p>
 
               <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
-                <Field label="Категория клиента">
-                  <div className="flex min-h-[46px] flex-wrap items-center gap-3 rounded-xl border border-[var(--line)] bg-white px-3 py-2.5">
-                    <label className="inline-flex cursor-pointer items-center gap-2 rounded-full border border-[var(--line)] bg-surface-soft px-3 py-1.5 text-sm">
-                      <input
-                        type="radio"
-                        name="cat"
-                        defaultChecked={client.category === "new"}
-                        disabled={readOnly}
-                      />{" "}
-                      Новый клиент
-                    </label>
-                    <label className="inline-flex cursor-pointer items-center gap-2 rounded-full border border-[var(--line)] bg-surface-soft px-3 py-1.5 text-sm">
-                      <input
-                        type="radio"
-                        name="cat"
-                        defaultChecked={client.category === "existing"}
-                        disabled={readOnly}
-                      />{" "}
-                      Действующий клиент
-                    </label>
-                  </div>
-                </Field>
                 <Field label="ИИН / БИН">
                   <Input
                     placeholder="Введите ИИН/БИН"
