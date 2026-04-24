@@ -729,12 +729,9 @@ function TariffRequestPage({
                 </Field>
               </div>
 
-              <div className="mt-4 grid grid-cols-1 gap-4 md:grid-cols-3">
+              <div className="mt-4 grid grid-cols-1 gap-4 md:grid-cols-2">
                 <Field label="Размер скидки, %">
                   <Input defaultValue="20" />
-                </Field>
-                <Field label="Горизонт прогноза">
-                  <Input defaultValue="12 месяцев" />
                 </Field>
                 <Field label="Примечание">
                   <Input placeholder="Краткий комментарий к расчету" />
