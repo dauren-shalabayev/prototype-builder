@@ -175,10 +175,10 @@ function LoginScreen({ onLogin }: { onLogin: () => void }) {
 
   return (
     <div className="flex min-h-screen items-center justify-center bg-background px-4">
-      <div className="w-full max-w-[440px] rounded-3xl border border-[var(--line)] bg-surface p-8 shadow-[0_20px_48px_rgba(15,23,42,0.08)]">
+      <div className="w-full max-w-[440px] rounded-3xl border border-[var(--line)] bg-white p-8 shadow-[0_20px_48px_rgba(15,23,42,0.08)]">
         <div className="mb-6 flex items-center gap-3">
-          <div className="h-12 w-12 rounded-2xl bg-brand-green" />
-          <div>
+          <div className="h-12 w-12 shrink-0 rounded-2xl bg-brand-green" />
+          <div className="min-w-0 -translate-x-1">
             <div className="text-[20px] font-semibold leading-tight">Тарифный комитет</div>
             <div className="text-xs text-muted-foreground">Авторизация оператора</div>
           </div>
@@ -253,18 +253,19 @@ function IinScreen({
 
   return (
     <div className="flex min-h-screen items-center justify-center bg-background px-4">
-      <div className="w-full max-w-[520px] rounded-3xl border border-[var(--line)] bg-surface p-8 shadow-[0_20px_48px_rgba(15,23,42,0.08)]">
-        <div className="mb-6 flex items-center justify-between">
-          <div className="flex items-center gap-3">
-            <div className="h-12 w-12 rounded-2xl bg-brand-green" />
-            <div>
+      <div className="w-full max-w-[520px] rounded-3xl border border-[var(--line)] bg-white p-8 shadow-[0_20px_48px_rgba(15,23,42,0.08)]">
+        <div className="mb-6 flex items-center justify-between gap-3">
+          <div className="flex min-w-0 items-center gap-3">
+            <BlockHeadingAccent size="screen" />
+            <div className="h-12 w-12 shrink-0 rounded-2xl bg-brand-green" />
+            <div className="min-w-0">
               <div className="text-[20px] font-semibold leading-tight">Поиск клиента</div>
               <div className="text-xs text-muted-foreground">Введите ИИН / БИН клиента</div>
             </div>
           </div>
           <button
             onClick={onLogout}
-            className="rounded-xl border border-[var(--line)] bg-white px-3 py-1.5 text-xs text-muted-foreground transition-colors hover:bg-surface-soft"
+            className="shrink-0 self-start rounded-xl border border-[var(--line)] bg-white px-3 py-1.5 text-xs text-muted-foreground transition-colors hover:bg-surface-soft"
           >
             Выйти
           </button>
@@ -295,7 +296,7 @@ function IinScreen({
             Найти клиента
           </button>
 
-          <div className="rounded-2xl border border-dashed border-[var(--line)] bg-surface-soft p-3.5 text-xs leading-relaxed text-muted-foreground">
+          <div className="rounded-2xl border border-dashed border-[var(--line)] bg-white p-3.5 text-xs leading-relaxed text-muted-foreground">
             <div className="mb-2 font-semibold text-foreground">
               Тестовые ИИН/БИН (есть в базе):
             </div>
@@ -324,9 +325,27 @@ function IinScreen({
 }
 
 // ========================= UI HELPERS =========================
+/** Цветная вертикальная плашка рядом с заголовком блока. */
+function BlockHeadingAccent({ size = "section" }: { size?: "section" | "screen" }) {
+  if (size === "screen") {
+    return (
+      <span
+        className="h-10 w-2 shrink-0 rounded-md bg-accent-yellow sm:h-11 sm:w-2"
+        aria-hidden
+      />
+    );
+  }
+  return (
+    <span
+      className="h-8 w-1.5 shrink-0 rounded-md bg-accent-yellow sm:h-9 sm:w-2"
+      aria-hidden
+    />
+  );
+}
+
 function MetaCard({ label, value }: { label: string; value: string }) {
   return (
-    <div className="rounded-2xl border border-[var(--line)] bg-surface-soft px-4 py-3.5">
+    <div className="rounded-2xl border border-[var(--line)] bg-muted px-4 py-3.5">
       <div className="mb-1 text-xs text-muted-foreground">{label}</div>
       <div className="text-base font-semibold text-foreground">{value}</div>
     </div>
@@ -335,9 +354,9 @@ function MetaCard({ label, value }: { label: string; value: string }) {
 
 function SectionTitle({ children }: { children: React.ReactNode }) {
   return (
-    <h2 className="mb-4 flex items-center gap-2.5 text-2xl font-semibold text-foreground">
-      <span className="block h-7 w-2 rounded-md bg-accent-yellow" />
-      {children}
+    <h2 className="mb-4 flex items-center gap-3 text-2xl font-semibold leading-tight text-foreground">
+      <BlockHeadingAccent size="section" />
+      <span className="min-w-0 flex-1">{children}</span>
     </h2>
   );
 }
@@ -373,7 +392,7 @@ function InfoBox({ k, v, tone }: { k: string; v: string; tone?: "pos" | "neg" })
   const toneCls =
     tone === "pos" ? "text-positive" : tone === "neg" ? "text-[var(--danger)]" : "text-foreground";
   return (
-    <div className="rounded-2xl border border-[var(--line)] bg-surface-soft p-3.5">
+    <div className="rounded-2xl border border-[var(--line)] bg-white p-3.5">
       <div className="mb-1 text-xs text-muted-foreground">{k}</div>
       <div className={`text-lg font-bold ${toneCls}`}>{v}</div>
     </div>
@@ -861,41 +880,44 @@ function TariffRequestPage({
 
   return (
     <div className="min-h-screen bg-background">
-      <div className="mx-auto max-w-[1440px] p-6">
+      <div className="mx-auto min-w-0 max-w-[1440px] px-6 pb-6 pt-3">
+        <div className="mb-3 flex flex-wrap items-center justify-end gap-2">
+          <button
+            type="button"
+            onClick={onBack}
+            className="rounded-xl border border-[var(--line)] bg-white px-3 py-1.5 text-xs text-foreground shadow-sm transition-colors hover:bg-surface-soft"
+          >
+            ← Изменить ИИН
+          </button>
+          <button
+            type="button"
+            onClick={onLogout}
+            className="rounded-xl border border-[var(--line)] bg-white px-3 py-1.5 text-xs text-muted-foreground shadow-sm transition-colors hover:bg-surface-soft"
+          >
+            Выйти
+          </button>
+        </div>
+
         {/* Topbar */}
-        <header className="flex flex-col items-start justify-between gap-6 rounded-3xl border border-[var(--line)] bg-surface px-7 py-6 shadow-[0_8px_24px_rgba(15,23,42,0.05)] lg:flex-row">
+        <header className="flex flex-col items-start justify-between gap-6 rounded-3xl border border-[var(--line)] bg-white px-7 py-6 shadow-[0_8px_24px_rgba(15,23,42,0.05)] lg:flex-row">
           <div className="flex items-center gap-3.5">
-            <div className="h-11 w-11 rounded-full bg-[oklch(0.88_0.04_25)]" />
-            <div>
-              <h1 className="m-0 text-[28px] font-semibold leading-tight">Тарифный комитет</h1>
+            <div className="h-11 w-11 shrink-0 rounded-full bg-[oklch(0.88_0.04_25)]" />
+            <div className="min-w-0">
+              <h1 className="m-0 text-[30px] font-semibold leading-tight tracking-tight sm:text-[33px]">
+                Тарифный комитет
+              </h1>
               <div className="text-sm text-muted-foreground">
                 Прототип страницы заявки на индивидуальные тарифные условия
               </div>
             </div>
           </div>
-          <div className="flex flex-col items-end gap-3">
-            <div className="flex gap-2">
-              <button
-                onClick={onBack}
-                className="rounded-xl border border-[var(--line)] bg-white px-3 py-1.5 text-xs text-foreground transition-colors hover:bg-surface-soft"
-              >
-                ← Изменить ИИН
-              </button>
-              <button
-                onClick={onLogout}
-                className="rounded-xl border border-[var(--line)] bg-white px-3 py-1.5 text-xs text-muted-foreground transition-colors hover:bg-surface-soft"
-              >
-                Выйти
-              </button>
-            </div>
-            <div className="grid w-full grid-cols-1 gap-3 sm:grid-cols-2 lg:w-auto lg:min-w-[620px] lg:grid-cols-3">
-              <MetaCard label="ФИО" value="Тестов Тест Тестович" />
-              <MetaCard label="Номер заявки" value="100347604082" />
-              <MetaCard label="Дата заявки" value="10.03.2026" />
-              <MetaCard label="Табельный номер" value="00011111" />
-              <MetaCard label="Статус" value="Черновик" />
-              <MetaCard label="Этап" value="Заполнение инициатором" />
-            </div>
+          <div className="grid w-full grid-cols-1 gap-3 sm:grid-cols-2 lg:w-auto lg:min-w-[620px] lg:grid-cols-3">
+            <MetaCard label="ФИО" value="Тестов Тест Тестович" />
+            <MetaCard label="Номер заявки" value="100347604082" />
+            <MetaCard label="Дата заявки" value="10.03.2026" />
+            <MetaCard label="Табельный номер" value="00011111" />
+            <MetaCard label="Статус" value="Черновик" />
+            <MetaCard label="Этап" value="Заполнение инициатором" />
           </div>
         </header>
 
@@ -913,10 +935,9 @@ function TariffRequestPage({
           </div>
         )}
 
-        <div className="mt-6 grid grid-cols-1 gap-6">
-          <main>
+        <div className="mt-6 grid min-w-0 grid-cols-1 gap-6 lg:grid-cols-[minmax(0,1fr)_min(340px,32vw)] lg:items-start">
             {/* Block 1 */}
-            <section className="mb-5 rounded-3xl border border-[var(--line)] bg-surface p-6 shadow-[0_8px_24px_rgba(15,23,42,0.04)]">
+            <section className="min-w-0 rounded-3xl border border-[var(--line)] bg-white p-6 shadow-[0_8px_24px_rgba(15,23,42,0.04)] lg:col-start-1 lg:row-start-1">
               <SectionTitle>Блок 1. Информация о клиенте</SectionTitle>
               <p className="-mt-1.5 mb-4 text-[13px] text-muted-foreground">
                 Для действующего клиента данные подтягиваются автоматически из карточки клиента. Для
@@ -1048,7 +1069,7 @@ function TariffRequestPage({
             </section>
 
             {/* Block 2 */}
-            <section className="mb-5 rounded-3xl border border-[var(--line)] bg-surface p-6 shadow-[0_8px_24px_rgba(15,23,42,0.04)]">
+            <section className="min-w-0 rounded-3xl border border-[var(--line)] bg-white p-6 shadow-[0_8px_24px_rgba(15,23,42,0.04)] lg:col-start-1 lg:row-start-2">
               <SectionTitle>Блок 2. Запрашиваемые условия</SectionTitle>
 
               <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
@@ -1110,40 +1131,57 @@ function TariffRequestPage({
                 </Field>
               </div>
 
-              <div className="mt-5 overflow-auto">
-                <table className="w-full overflow-hidden rounded-2xl border border-[var(--line)] text-sm">
+              <div className="mt-[18px] min-w-0">
+                <table className="w-full table-fixed border-separate border-spacing-0 overflow-hidden rounded-2xl border border-[var(--line)] text-sm leading-normal [&_thead_th]:border-r [&_thead_th]:border-white/15 [&_thead_th:last-child]:border-r-0">
+                  <colgroup>
+                    <col style={{ width: "5%" }} />
+                    <col style={{ width: "5%" }} />
+                    <col style={{ width: "21%" }} />
+                    <col style={{ width: "10%" }} />
+                    <col style={{ width: "9%" }} />
+                    <col style={{ width: "9%" }} />
+                    <col style={{ width: "6%" }} />
+                    <col style={{ width: "6%" }} />
+                    <col style={{ width: "5%" }} />
+                    <col style={{ width: "5%" }} />
+                    <col style={{ width: "5%" }} />
+                    <col style={{ width: "14%" }} />
+                  </colgroup>
                   <thead>
-                    <tr className="bg-[var(--table-head)] text-white">
-                      <th className="w-[52px] border-r border-white/15 p-2.5 text-left text-xs">
+                    <tr>
+                      <th className="min-w-0 bg-[var(--table-head)] px-1.5 py-2 text-left align-middle text-sm font-bold leading-tight text-white whitespace-normal break-words hyphens-auto">
                         Выбр.
                       </th>
-                      <th className="w-[56px] border-r border-white/15 p-2.5 text-left text-xs">
+                      <th className="min-w-0 bg-[var(--table-head)] px-1.5 py-2 text-left align-middle text-sm font-bold leading-tight text-white whitespace-normal break-words hyphens-auto">
                         №
                       </th>
-                      <th className="min-w-[200px] border-r border-white/15 p-2.5 text-left text-xs">
+                      <th className="min-w-0 bg-[var(--table-head)] px-1.5 py-2 text-left align-middle text-sm font-bold leading-tight text-white whitespace-normal break-words hyphens-auto">
                         Наименование операции
                       </th>
-                      <th className="min-w-[140px] border-r border-white/15 p-2.5 text-left text-xs">
+                      <th className="min-w-0 bg-[var(--table-head)] px-1.5 py-2 text-left align-middle text-sm font-bold leading-tight text-white whitespace-normal break-words hyphens-auto">
                         Базовый тариф
                       </th>
-                      <th className="w-[100px] border-r border-white/15 p-2.5 text-left text-xs">
+                      <th className="min-w-0 bg-[var(--table-head)] px-1.5 py-2 text-left align-middle text-sm font-bold leading-tight text-white whitespace-normal break-words hyphens-auto">
                         Себестоимость
                       </th>
-                      <th className="w-[100px] border-r border-white/15 p-2.5 text-left text-xs">
+                      <th className="min-w-0 bg-[var(--table-head)] px-1.5 py-2 text-left align-middle text-sm font-bold leading-tight text-white whitespace-normal break-words hyphens-auto">
                         Текущий доход
                       </th>
-                      <th className="w-[72px] border-r border-white/15 p-2.5 text-left text-xs">
+                      <th className="min-w-0 bg-[var(--table-head)] px-1.5 py-2 text-left align-middle text-sm font-bold leading-tight text-white whitespace-normal break-words hyphens-auto">
                         Скидка (%)
                       </th>
-                      <th colSpan={4} className="border-r border-white/15 p-2.5 text-left text-xs">
+                      <th
+                        colSpan={4}
+                        className="min-w-0 bg-[var(--table-head)] px-1.5 py-2 text-left align-middle text-sm font-bold leading-tight text-white whitespace-normal break-words hyphens-auto"
+                      >
                         Запрашиваемый тариф
                       </th>
-                      <th className="min-w-[120px] p-2.5 text-left text-xs">
-                        Прогноз доходности с учетом скидки
+                      <th className="min-w-0 bg-[var(--table-head)] px-1.5 py-2 text-left align-middle text-sm font-bold leading-tight text-white whitespace-normal break-words hyphens-auto">
+                        Прогноз доходности
                       </th>
                     </tr>
-                    <tr className="bg-[var(--table-sub)] text-[12px] font-normal text-white">
-                      <th className="border-r border-white/15 p-2 text-center align-middle">
+                    <tr className="text-sm font-bold leading-tight text-white">
+                      <th className="min-w-0 bg-[var(--table-sub)] px-1.5 py-2 text-center align-middle whitespace-normal break-words">
                         <input
                           ref={selectAllRef}
                           type="checkbox"
@@ -1156,43 +1194,48 @@ function TariffRequestPage({
                               );
                             })
                           }
-                          className="h-4 w-4 accent-brand-green"
+                          className="h-4 w-4 accent-white"
                           aria-label="Выделить все операции или снять выделение"
                           title="Выделить все / снять все"
                         />
-                        <span className="mt-0.5 block text-[10px] font-normal leading-tight">
-                          все
-                        </span>
                       </th>
-                      <th className="border-r border-white/15 p-2" />
-                      <th className="border-r border-white/15 p-2" />
-                      <th className="border-r border-white/15 p-2" />
-                      <th className="border-r border-white/15 p-2" />
-                      <th className="border-r border-white/15 p-2" />
-                      <th className="border-r border-white/15 p-2" />
-                      <th className="w-[88px] border-r border-white/15 p-2 text-left">Фикс.</th>
-                      <th className="w-[72px] border-r border-white/15 p-2 text-left">%</th>
-                      <th className="w-[80px] border-r border-white/15 p-2 text-left">min</th>
-                      <th className="w-[72px] border-r border-white/15 p-2 text-left">max</th>
-                      <th className="p-2" />
+                      <th className="min-w-0 bg-[var(--table-sub)] px-1.5 py-2" />
+                      <th className="min-w-0 bg-[var(--table-sub)] px-1.5 py-2" />
+                      <th className="min-w-0 bg-[var(--table-sub)] px-1.5 py-2" />
+                      <th className="min-w-0 bg-[var(--table-sub)] px-1.5 py-2" />
+                      <th className="min-w-0 bg-[var(--table-sub)] px-1.5 py-2" />
+                      <th className="min-w-0 bg-[var(--table-sub)] px-1.5 py-2" />
+                      <th className="min-w-0 bg-[var(--table-sub)] px-1.5 py-2 text-left whitespace-normal break-words leading-tight">
+                        Фикс.
+                      </th>
+                      <th className="min-w-0 bg-[var(--table-sub)] px-1.5 py-2 text-left whitespace-normal break-words leading-tight">
+                        %
+                      </th>
+                      <th className="min-w-0 bg-[var(--table-sub)] px-1.5 py-2 text-left whitespace-normal break-words leading-tight">
+                        min
+                      </th>
+                      <th className="min-w-0 bg-[var(--table-sub)] px-1.5 py-2 text-left whitespace-normal break-words leading-tight">
+                        max
+                      </th>
+                      <th className="min-w-0 bg-[var(--table-sub)] px-1.5 py-2" />
                     </tr>
                   </thead>
                   <tbody>
                     {b2.rowsOut.map((r) =>
                       r.row.isSection ? (
-                        <tr key={r.row.rowKey} className="bg-[var(--section-row)] font-bold">
-                          <td className="border-t border-r border-[var(--line)] p-2" />
-                          <td className="border-t border-r border-[var(--line)] p-2" />
+                        <tr key={r.row.rowKey} className="font-bold">
+                          <td className="border-t border-r border-[var(--line)] bg-[var(--section-row)] px-2.5 py-2.5" />
+                          <td className="border-t border-r border-[var(--line)] bg-[var(--section-row)] px-2.5 py-2.5" />
                           <td
                             colSpan={10}
-                            className="border-t border-[var(--line)] p-2.5 text-[13px]"
+                            className="border-t border-[var(--line)] bg-[var(--section-row)] px-2.5 py-2.5 text-sm font-bold leading-snug break-words last:border-r-0"
                           >
                             {r.row.name}
                           </td>
                         </tr>
                       ) : (
                         <tr key={r.row.rowKey} className="bg-white">
-                          <td className="border-t border-r border-[var(--line)] p-2 text-center">
+                          <td className="border-t border-r border-[var(--line)] bg-white px-2.5 py-2.5 text-center align-top">
                             <input
                               type="checkbox"
                               checked={r.sel}
@@ -1206,37 +1249,37 @@ function TariffRequestPage({
                               aria-label={`Выбрать операцию ${r.row.code || r.row.name.slice(0, 40)}`}
                             />
                           </td>
-                          <td className="border-t border-r border-[var(--line)] p-2 align-top font-mono text-xs">
+                          <td className="border-t border-r border-[var(--line)] bg-white px-2.5 py-2.5 align-top font-mono text-sm leading-snug break-all text-foreground last:border-r-0">
                             {r.row.code || "—"}
                           </td>
-                          <td className="border-t border-r border-[var(--line)] p-2 align-top text-xs leading-snug">
+                          <td className="border-t border-r border-[var(--line)] bg-white px-2.5 py-2.5 align-top text-sm leading-snug break-words text-foreground last:border-r-0">
                             {r.row.name}
                           </td>
-                          <td className="border-t border-r border-[var(--line)] p-2 align-top text-xs leading-snug text-muted-foreground">
+                          <td className="border-t border-r border-[var(--line)] bg-white px-2.5 py-2.5 align-top text-sm leading-snug break-words text-muted-foreground last:border-r-0">
                             {r.baseStr}
                           </td>
-                          <td className="border-t border-r border-[var(--line)] p-2 align-top text-xs">
+                          <td className="border-t border-r border-[var(--line)] bg-white px-2.5 py-2.5 align-top text-sm leading-snug break-words last:border-r-0">
                             {r.costStr}
                           </td>
-                          <td className="border-t border-r border-[var(--line)] p-2 align-top text-xs">
+                          <td className="border-t border-r border-[var(--line)] bg-white px-2.5 py-2.5 align-top text-sm leading-snug break-words last:border-r-0">
                             {r.incomeStr}
                           </td>
-                          <td className="border-t border-r border-[var(--line)] p-2 align-top text-xs">
+                          <td className="border-t border-r border-[var(--line)] bg-white px-2.5 py-2.5 align-top text-sm leading-snug break-words last:border-r-0">
                             {r.discountCol}
                           </td>
-                          <td className="border-t border-r border-[var(--line)] p-1 align-top text-xs">
-                            <span className="block p-1">{r.fixStr}</span>
+                          <td className="border-t border-r border-[var(--line)] bg-white px-2.5 py-2.5 align-top text-sm last:border-r-0">
+                            <span className="block break-all leading-snug">{r.fixStr}</span>
                           </td>
-                          <td className="border-t border-r border-[var(--line)] p-1 align-top text-xs">
-                            <span className="block p-1">{r.pctStr}</span>
+                          <td className="border-t border-r border-[var(--line)] bg-white px-2.5 py-2.5 align-top text-sm last:border-r-0">
+                            <span className="block break-all leading-snug">{r.pctStr}</span>
                           </td>
-                          <td className="border-t border-r border-[var(--line)] p-1 align-top text-xs">
-                            <span className="block p-1">{r.minStr}</span>
+                          <td className="border-t border-r border-[var(--line)] bg-white px-2.5 py-2.5 align-top text-sm last:border-r-0">
+                            <span className="block break-all leading-snug">{r.minStr}</span>
                           </td>
-                          <td className="border-t border-r border-[var(--line)] p-1 align-top text-xs">
-                            <span className="block p-1">{r.maxStr}</span>
+                          <td className="border-t border-r border-[var(--line)] bg-white px-2.5 py-2.5 align-top text-sm last:border-r-0">
+                            <span className="block break-all leading-snug">{r.maxStr}</span>
                           </td>
-                          <td className="border-t border-[var(--line)] p-2 align-top text-xs font-medium">
+                          <td className="border-t border-r border-[var(--line)] bg-white px-2.5 py-2.5 align-top text-sm font-medium leading-snug break-words last:border-r-0">
                             {r.forecastStr}
                           </td>
                         </tr>
@@ -1244,36 +1287,41 @@ function TariffRequestPage({
                     )}
                   </tbody>
                   <tfoot>
-                    <tr className="border-t-2 border-[var(--line)] bg-surface-soft text-xs font-semibold">
-                      <td colSpan={4} className="border-t border-r border-[var(--line)] p-2.5">
-                        Итого на весь срок: {validityMonths} мес. (коэф. периода{" "}
+                    <tr className="bg-white text-sm font-semibold leading-snug">
+                      <td
+                        colSpan={4}
+                        className="border-t-2 border-t-[var(--line)] border-r border-[var(--line)] bg-white px-2.5 py-2.5 break-words last:border-r-0"
+                      >
+                        Итого {validityMonths} мес., коэф.{" "}
                         {b2.periodFactor.toLocaleString("ru-RU", {
                           maximumFractionDigits: 2,
                         })}
-                        )
                       </td>
-                      <td className="border-t border-r border-[var(--line)] p-2.5">
+                      <td className="border-t-2 border-t-[var(--line)] border-r border-[var(--line)] bg-white px-2.5 py-2.5 break-words last:border-r-0">
                         Себестоимость
                         <div className="mt-0.5 font-normal text-muted-foreground">
                           {formatMoneyRu(b2.sumCost)}
                         </div>
                       </td>
-                      <td className="border-t border-r border-[var(--line)] p-2.5">
-                        Стандартный тариф (текущий доход)
+                      <td className="border-t-2 border-t-[var(--line)] border-r border-[var(--line)] bg-white px-2.5 py-2.5 break-words last:border-r-0">
+                        Стандартный тариф
                         <div className="mt-0.5 font-normal text-muted-foreground">
                           {formatMoneyRu(b2.sumIncome)}
                         </div>
                       </td>
-                      <td colSpan={5} className="border-t border-r border-[var(--line)] p-2.5">
-                        Запрашиваемый тариф (прогноз доходности)
+                      <td
+                        colSpan={5}
+                        className="border-t-2 border-t-[var(--line)] border-r border-[var(--line)] bg-white px-2.5 py-2.5 break-words last:border-r-0"
+                      >
+                        Запрашиваемый тариф (прогноз)
                         <div className="mt-0.5 font-normal text-muted-foreground">
                           {formatMoneyRu(b2.sumForecast)}
                         </div>
-                        <div className="mt-2 text-foreground">
-                          Прогноз недополученного дохода: {formatMoneyRu(b2.lost)}
+                        <div className="mt-1 text-foreground">
+                          Недополученный доход: {formatMoneyRu(b2.lost)}
                         </div>
-                        <div className="mt-1">
-                          Прогноз рентабельности:{" "}
+                        <div className="mt-0.5">
+                          Рентабельность:{" "}
                           <span
                             className={b2.profit >= 0 ? "text-positive" : "text-[var(--danger)]"}
                           >
@@ -1282,9 +1330,9 @@ function TariffRequestPage({
                           </span>
                         </div>
                       </td>
-                      <td className="border-t border-[var(--line)] p-2.5 align-top">
-                        <div className="text-muted-foreground">Σ прогноз</div>
-                        <div className="text-sm text-foreground">
+                      <td className="border-t-2 border-t-[var(--line)] border-r border-[var(--line)] bg-white px-2.5 py-2.5 align-top break-words last:border-r-0">
+                        <div className="font-normal text-muted-foreground">Σ прогноз</div>
+                        <div className="font-bold text-foreground">
                           {formatMoneyRu(b2.sumForecast)}
                         </div>
                       </td>
@@ -1303,7 +1351,7 @@ function TariffRequestPage({
                 отображаются следующим участникам маршрута.
               </p>
 
-              <div className="relative mt-3 rounded-2xl border border-dashed border-[var(--line)] bg-[oklch(0.99_0.01_250)] p-4">
+              <div className="relative mt-3 rounded-2xl border border-dashed border-[var(--line)] bg-white p-4">
                 <div className="flex flex-wrap items-center justify-between gap-3">
                   <strong className="text-foreground">Прикрепить документ</strong>
                   <label
@@ -1400,9 +1448,9 @@ function TariffRequestPage({
               </div>
             </section>
 
-            {/* Блок 3 — прогнозные данные, под блоком 2 */}
-            <aside className="mb-5 rounded-3xl border border-[var(--line)] bg-surface p-5 shadow-[0_12px_28px_rgba(15,23,42,0.07)]">
-              <SectionTitle>Блок 3. Прогнозные данные</SectionTitle>
+            {/* Прогнозные данные — справа на lg; на мобиле после блока 2 */}
+            <aside className="min-w-0 rounded-3xl border border-[var(--line)] bg-white p-5 shadow-[0_12px_28px_rgba(15,23,42,0.07)] lg:sticky lg:top-4 lg:col-start-2 lg:row-start-1 lg:row-span-3 lg:self-start">
+              <SectionTitle>Прогнозные данные</SectionTitle>
               <div className="text-xs text-muted-foreground">
                 Сводный калькулятор по выбранным операциям и сроку действия тарифа.
               </div>
@@ -1433,7 +1481,7 @@ function TariffRequestPage({
               />
               <CalcRow label="Статус рентабельности РКО" value={profitStatus} tone={profitTone} />
 
-              <div className="mt-4 rounded-2xl border border-dashed border-[var(--line)] bg-[oklch(0.99_0.01_250)] p-4">
+              <div className="mt-4 rounded-2xl border border-dashed border-[var(--line)] bg-white p-4">
                 <strong className="text-foreground">Контрольные проверки</strong>
                 <div className="mt-1 text-xs leading-relaxed text-muted-foreground">
                   • выбрана только 1 категория тарифа
@@ -1446,9 +1494,9 @@ function TariffRequestPage({
               </div>
             </aside>
 
-            {/* Блок 4 */}
-            <section className="mb-5 rounded-3xl border border-[var(--line)] bg-surface p-6 shadow-[0_8px_24px_rgba(15,23,42,0.04)]">
-              <SectionTitle>Блок 4. Обоснование</SectionTitle>
+            {/* Блок 3. Обоснование */}
+            <section className="min-w-0 rounded-3xl border border-[var(--line)] bg-white p-6 shadow-[0_8px_24px_rgba(15,23,42,0.04)] lg:col-start-1 lg:row-start-3">
+              <SectionTitle>Блок 3. Обоснование</SectionTitle>
               <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
                 <Field label="Краткое обоснование">
                   <Textarea
@@ -1470,7 +1518,7 @@ function TariffRequestPage({
                   </Field>
                   <div className="mt-2 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
                     <p className="text-xs leading-relaxed text-muted-foreground">
-                      PDF формируется в браузере из полей блока 4 и открывается как загрузка по
+                      PDF формируется в браузере из полей блока 3 и открывается как загрузка по
                       временной ссылке (blob).
                     </p>
                     <button
@@ -1525,7 +1573,6 @@ function TariffRequestPage({
                 </button>
               </div>
             </section>
-          </main>
         </div>
       </div>
     </div>

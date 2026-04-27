@@ -61,6 +61,16 @@
   --color-sidebar-ring: var(--sidebar-ring);
   --color-brand-green: var(--brand-green);
   --color-brand-green-dark: var(--brand-green-dark);
+  /* Кастомные токены приложения (утилиты bg-…, text-… из классов) */
+  --color-accent-yellow: var(--accent-yellow);
+  --color-surface: var(--surface);
+  --color-surface-soft: var(--surface-soft);
+  --color-positive: var(--positive);
+  --color-table-head: var(--table-head);
+  --color-table-sub: var(--table-sub);
+  --color-section-row: var(--section-row);
+  --color-total-bg: var(--total-bg);
+  --color-total-border: var(--total-border);
 }
 
 :root {
@@ -73,9 +83,10 @@
   --accent-yellow: oklch(0.85 0.15 85);
   --brand-green: oklch(0.55 0.13 150);
   --brand-green-dark: oklch(0.42 0.12 150);
-  --table-head: oklch(0.4 0.08 155);
-  --table-sub: oklch(0.5 0.09 155);
-  --section-row: oklch(0.96 0.06 110);
+  /* Тарифная таблица — как в HTML-прототипе (зелёная шапка, строки разделов) */
+  --table-head: #186a4d;
+  --table-sub: #2f8a69;
+  --section-row: #f7fbe9;
   --positive: oklch(0.5 0.13 150);
   --danger: oklch(0.5 0.18 27);
   --total-bg: oklch(0.97 0.04 150);
