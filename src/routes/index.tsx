@@ -687,11 +687,12 @@ type Block2RowComputed = {
 
 /** Пустое или нечисловое поле при расчёте трактуем как минимум 1% */
 function parseDiscountPercentInput(raw: string): number {
-  const t = raw.trim();
+  const t = raw.trim().replace(",", ".");
   if (t === "") return 1;
-  const n = Math.round(Number(t));
+  const n = Number(t);
   if (!Number.isFinite(n)) return 20;
-  return Math.min(100, Math.max(1, n));
+  const clamped = Math.min(100, Math.max(1, n));
+  return Math.round(clamped * 100) / 100;
 }
 
 function computeBlock2TariffState(
@@ -836,7 +837,7 @@ function TariffRequestPage({
   const [flowStage, setFlowStage] = useState<ApprovalFlowStage>("initiator");
   const [tariffCategory, setTariffCategory] = useState<TariffCategory>("A");
   const [validityMonths, setValidityMonths] = useState<3 | 6 | 12>(12);
-  const [discountInput, setDiscountInput] = useState("20");
+  const [discountInput, setDiscountInput] = useState("");
   const [rowDiscountInputs, setRowDiscountInputs] = useState<Record<string, string>>({});
   const [selected, setSelected] = useState<Record<string, boolean>>(() =>
     Object.fromEntries(TARIFF_SELECTABLE_ROW_KEYS.map((k) => [k, false])),
@@ -887,6 +888,14 @@ function TariffRequestPage({
     if (!el) return;
     el.indeterminate = someSelected && !allSelected;
   }, [someSelected, allSelected]);
+
+  useEffect(() => {
+    setRowDiscountInputs((prev) =>
+      Object.fromEntries(
+        Object.entries(prev).filter(([rowKey, value]) => (selected[rowKey] ?? false) && value.trim() !== ""),
+      ),
+    );
+  }, [selected]);
 
   useEffect(() => {
     if (readOnly && client.iinBin && foundClientToastIinRef.current !== client.iinBin) {
@@ -1250,18 +1259,18 @@ function TariffRequestPage({
                     autoComplete="off"
                     value={discountInput}
                     onChange={(e) => {
-                      const v = e.target.value.replace(/\D/g, "");
-                      if (v.length <= 3) setDiscountInput(v);
+                      const v = e.target.value
+                        .replace(",", ".")
+                        .replace(/[^0-9.]/g, "")
+                        .replace(/(\..*)\./g, "$1");
+                      if (v.length <= 6) setDiscountInput(v);
                     }}
                     onBlur={() => {
                       const t = discountInput.trim();
-                      if (t === "") {
-                        setDiscountInput("20");
-                        return;
-                      }
-                      const n = Math.round(Number(t));
-                      if (!Number.isFinite(n) || n < 1) setDiscountInput("20");
-                      else setDiscountInput(String(Math.min(100, n)));
+                      if (t === "") return;
+                      const n = Number(t.replace(",", "."));
+                      if (!Number.isFinite(n) || n < 1) setDiscountInput("1");
+                      else setDiscountInput(String(parseDiscountPercentInput(t)));
                     }}
                   />
                 </Field>
@@ -1415,8 +1424,11 @@ function TariffRequestPage({
                                 autoComplete="off"
                                 value={rowDiscountInputs[r.row.rowKey] ?? (r.sel ? r.discountCol.replace("%", "") : "")}
                                 onChange={(e) => {
-                                  const v = e.target.value.replace(/\D/g, "");
-                                  if (v.length <= 3) {
+                                  const v = e.target.value
+                                    .replace(",", ".")
+                                    .replace(/[^0-9.]/g, "")
+                                    .replace(/(\..*)\./g, "$1");
+                                  if (v.length <= 6) {
                                     setRowDiscountInputs((s) => ({ ...s, [r.row.rowKey]: v }));
                                   }
                                 }}
