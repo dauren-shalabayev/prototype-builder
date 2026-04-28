@@ -1,5 +1,6 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { forwardRef, useEffect, useId, useMemo, useRef, useState } from "react";
+import { toast } from "sonner";
 
 import { downloadTariffCommitteePdf } from "@/lib/tariffCommitteePdf";
 
@@ -109,6 +110,15 @@ const DEMO_OPERATOR_LOGIN = "00011111";
 const DEMO_OPERATOR_PASSWORD = "pass";
 
 type Screen = "login" | "iin" | "form";
+type ApprovalFlowStage = "initiator" | "manager" | "secretary" | "committee";
+type ApproveAction = "initiator" | "manager" | "secretary" | "committee";
+
+const APPROVAL_FLOW_STAGES: { id: ApprovalFlowStage; label: string }[] = [
+  { id: "initiator", label: "Инициатор" },
+  { id: "manager", label: "Руководитель инициатора" },
+  { id: "secretary", label: "Секретарь Комитета" },
+  { id: "committee", label: "Член ТК" },
+];
 
 function AppFlow() {
   const [screen, setScreen] = useState<Screen>("login");
@@ -361,10 +371,20 @@ function SectionTitle({ children }: { children: React.ReactNode }) {
   );
 }
 
-function Field({ label, children }: { label: string; children: React.ReactNode }) {
+function Field({
+  label,
+  children,
+  className,
+  labelClassName,
+}: {
+  label: string;
+  children: React.ReactNode;
+  className?: string;
+  labelClassName?: string;
+}) {
   return (
-    <div>
-      <label className="mb-2 block text-xs text-muted-foreground">{label}</label>
+    <div className={className}>
+      <label className={`mb-2 block text-xs text-muted-foreground ${labelClassName ?? ""}`}>{label}</label>
       {children}
     </div>
   );
@@ -803,11 +823,21 @@ function TariffRequestPage({
   onBack: () => void;
   onLogout: () => void;
 }) {
+  const [flowStage, setFlowStage] = useState<ApprovalFlowStage>("initiator");
   const [tariffCategory, setTariffCategory] = useState<TariffCategory>("A");
   const [validityMonths, setValidityMonths] = useState<3 | 6 | 12>(12);
   const [discountInput, setDiscountInput] = useState("20");
   const [selected, setSelected] = useState<Record<string, boolean>>(() =>
     Object.fromEntries(TARIFF_SELECTABLE_ROW_KEYS.map((k) => [k, false])),
+  );
+  const [isInitiatorSubmitted, setIsInitiatorSubmitted] = useState(false);
+  const [approveAction, setApproveAction] = useState<ApproveAction | null>(null);
+  const [showManagerReworkModal, setShowManagerReworkModal] = useState(false);
+  const [managerReworkReason, setManagerReworkReason] = useState("");
+  const [showExtraInfoModal, setShowExtraInfoModal] = useState(false);
+  const [extraInfoReason, setExtraInfoReason] = useState("");
+  const [reviewQuestion, setReviewQuestion] = useState(
+    "Внесение изменений в действующие (в сетку) тарифы на банковское обслуживание ( ЮЛ, ФЛ и др.)",
   );
   const [noteTariff, setNoteTariff] = useState("");
   const [briefJustification, setBriefJustification] = useState("");
@@ -819,6 +849,7 @@ function TariffRequestPage({
   const [attachments, setAttachments] = useState<{ id: string; file: File; previewUrl?: string }[]>(
     [],
   );
+  const foundClientToastIinRef = useRef<string | null>(null);
   const attachmentsRef = useRef(attachments);
   attachmentsRef.current = attachments;
 
@@ -846,10 +877,32 @@ function TariffRequestPage({
     el.indeterminate = someSelected && !allSelected;
   }, [someSelected, allSelected]);
 
+  useEffect(() => {
+    if (readOnly && client.iinBin && foundClientToastIinRef.current !== client.iinBin) {
+      foundClientToastIinRef.current = client.iinBin;
+      toast.success("Клиент найден в базе", {
+        description:
+          "Данные подтянуты автоматически из карточки клиента и недоступны для редактирования.",
+      });
+    }
+    if (!readOnly) {
+      foundClientToastIinRef.current = null;
+    }
+  }, [readOnly, client.iinBin]);
+
   const b2 = useMemo(
     () => computeBlock2TariffState(tariffCategory, validityMonths, discountInput, selected),
     [tariffCategory, validityMonths, discountInput, selected],
   );
+  const isApproverStage = flowStage !== "initiator";
+  const rowsForCurrentStage = useMemo(
+    () =>
+      isApproverStage
+        ? b2.rowsOut.filter((r) => !r.row.isSection && r.sel)
+        : b2.rowsOut,
+    [isApproverStage, b2.rowsOut],
+  );
+  const hideMainContent = flowStage === "initiator" && isInitiatorSubmitted;
 
   const profitTone: "pos" | "neg" | undefined =
     b2.profit > 0 ? "pos" : b2.profit < 0 ? "neg" : undefined;
@@ -877,25 +930,67 @@ function TariffRequestPage({
       }
     })();
   };
+  const scrollToTop = () => {
+    window.scrollTo({ top: 0, behavior: "smooth" });
+  };
+  const approveActionMeta: Record<ApproveAction, { title: string; description: string }> = {
+    initiator: {
+      title: "Отправка на согласование",
+      description: "Вы уверены, что готовы отправить заявку на согласование?",
+    },
+    manager: {
+      title: "Согласование руководителем инициатора",
+      description: "Подтвердите согласование и передачу заявки секретарю Комитета.",
+    },
+    secretary: {
+      title: "Согласование секретарем Комитета",
+      description: "Подтвердите согласование и передачу заявки члену Тарифного комитета.",
+    },
+    committee: {
+      title: "Голосование члена ТК",
+      description: "Подтвердите решение «За» по данной заявке.",
+    },
+  };
 
   return (
     <div className="min-h-screen bg-background">
       <div className="mx-auto min-w-0 max-w-[1440px] px-6 pb-6 pt-3">
-        <div className="mb-3 flex flex-wrap items-center justify-end gap-2">
-          <button
-            type="button"
-            onClick={onBack}
-            className="rounded-xl border border-[var(--line)] bg-white px-3 py-1.5 text-xs text-foreground shadow-sm transition-colors hover:bg-surface-soft"
-          >
-            ← Изменить ИИН
-          </button>
-          <button
-            type="button"
-            onClick={onLogout}
-            className="rounded-xl border border-[var(--line)] bg-white px-3 py-1.5 text-xs text-muted-foreground shadow-sm transition-colors hover:bg-surface-soft"
-          >
-            Выйти
-          </button>
+        <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
+          <div className="flex flex-wrap items-center gap-2">
+            {APPROVAL_FLOW_STAGES.map((stage) => {
+              const isActive = flowStage === stage.id;
+              return (
+                <button
+                  key={stage.id}
+                  type="button"
+                  onClick={() => setFlowStage(stage.id)}
+                  className={`rounded-xl border px-3 py-1.5 text-xs shadow-sm transition-colors ${
+                    isActive
+                      ? "border-brand-green bg-brand-green text-white"
+                      : "border-[var(--line)] bg-white text-foreground hover:bg-surface-soft"
+                  }`}
+                >
+                  {stage.label}
+                </button>
+              );
+            })}
+          </div>
+          <div className="flex items-center gap-2">
+            <button
+              type="button"
+              onClick={onBack}
+              className="rounded-xl border border-[var(--line)] bg-white px-3 py-1.5 text-xs text-foreground shadow-sm transition-colors hover:bg-surface-soft"
+            >
+              ← Изменить ИИН
+            </button>
+            <button
+              type="button"
+              onClick={onLogout}
+              className="rounded-xl border border-[var(--line)] bg-white px-3 py-1.5 text-xs text-muted-foreground shadow-sm transition-colors hover:bg-surface-soft"
+            >
+              Выйти
+            </button>
+          </div>
         </div>
 
         {/* Topbar */}
@@ -912,30 +1007,20 @@ function TariffRequestPage({
             </div>
           </div>
           <div className="grid w-full grid-cols-1 gap-3 sm:grid-cols-2 lg:w-auto lg:min-w-[620px] lg:grid-cols-3">
-            <MetaCard label="ФИО" value="Тестов Тест Тестович" />
+            <MetaCard label="ФИО / Табельный номер" value="Тестов Тест Тестович / 00011111" />
             <MetaCard label="Номер заявки" value="100347604082" />
             <MetaCard label="Дата заявки" value="10.03.2026" />
-            <MetaCard label="Табельный номер" value="00011111" />
-            <MetaCard label="Статус" value="Черновик" />
-            <MetaCard label="Этап" value="Заполнение инициатором" />
           </div>
         </header>
 
-        {readOnly && (
-          <div className="mt-4 flex items-center gap-2.5 rounded-2xl border border-[var(--total-border)] bg-[var(--total-bg)] px-4 py-3 text-sm text-foreground">
-            <span className="text-lg">✓</span>
-            Клиент найден в базе. Данные подтянуты автоматически из карточки клиента и недоступны
-            для редактирования.
-          </div>
-        )}
-        {!readOnly && client.iinBin && (
+        {!hideMainContent && !readOnly && client.iinBin && (
           <div className="mt-4 flex items-center gap-2.5 rounded-2xl border border-[oklch(0.85_0.08_85)] bg-[oklch(0.99_0.03_85)] px-4 py-3 text-sm text-foreground">
             <span className="text-lg">⚠</span>
             Клиент не найден в базе. Заполните данные нового клиента вручную.
           </div>
         )}
-
-        <div className="mt-6 grid min-w-0 grid-cols-1 gap-6 lg:grid-cols-[minmax(0,1fr)_min(340px,32vw)] lg:items-start">
+        {!hideMainContent && (
+          <div className="mt-6 grid min-w-0 grid-cols-1 gap-6 lg:grid-cols-[minmax(0,1fr)_min(340px,32vw)] lg:items-start">
             {/* Block 1 */}
             <section className="min-w-0 rounded-3xl border border-[var(--line)] bg-white p-6 shadow-[0_8px_24px_rgba(15,23,42,0.04)] lg:col-start-1 lg:row-start-1">
               <SectionTitle>Блок 1. Информация о клиенте</SectionTitle>
@@ -1073,6 +1158,38 @@ function TariffRequestPage({
               <SectionTitle>Блок 2. Запрашиваемые условия</SectionTitle>
 
               <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+                <Field
+                  label="Вопрос на рассмотрение"
+                  className="relative z-20 md:col-span-2"
+                  labelClassName="mb-3 text-[18px] leading-tight font-semibold text-foreground"
+                >
+                  <Select value={reviewQuestion} onChange={(e) => setReviewQuestion(e.target.value)}>
+                    <option value="Внесение изменений в действующие (в сетку) тарифы на банковское обслуживание ( ЮЛ, ФЛ и др.)">
+                      Внесение изменений в действующие (в сетку) тарифы на банковское обслуживание ( ЮЛ,
+                      ФЛ и др.)
+                    </option>
+                    <option value="Установление индивидуального тарифа комиссионного вознаграждения">
+                      Установление индивидуального тарифа комиссионного вознаграждения
+                    </option>
+                    <option value="Возврат/списание/аннулирование комиссии клиентам Банка">
+                      Возврат/списание/аннулирование комиссии клиентам Банка
+                    </option>
+                    <option value="ЮЛ Мониторинговый отчет по установленным тарифам">
+                      ЮЛ Мониторинговый отчет по установленным тарифам
+                    </option>
+                    <option value="Прочие вопросы ТК, не вошедшие в основной перечень">
+                      Прочие вопросы ТК, не вошедшие в основной перечень
+                    </option>
+                  </Select>
+                </Field>
+                <Field label="Краткое обоснование" className="md:col-span-2">
+                  <Textarea
+                    placeholder="Опишите цель, экономический эффект, значимость клиента и причину запрашиваемого отклонения от базовых тарифов"
+                    value={briefJustification}
+                    onChange={(e) => setBriefJustification(e.target.value)}
+                    rows={6}
+                  />
+                </Field>
                 <Field label="Выберите категорию тарифа (одна категория)">
                   <Select
                     value={tariffCategory}
@@ -1097,7 +1214,6 @@ function TariffRequestPage({
                   </Select>
                 </Field>
               </div>
-
               <div className="mt-4 grid grid-cols-1 gap-4 md:grid-cols-2">
                 <Field label="Размер скидки, % (от 1 до 100)">
                   <Input
@@ -1221,7 +1337,7 @@ function TariffRequestPage({
                     </tr>
                   </thead>
                   <tbody>
-                    {b2.rowsOut.map((r) =>
+                    {rowsForCurrentStage.map((r) =>
                       r.row.isSection ? (
                         <tr key={r.row.rowKey} className="font-bold">
                           <td className="border-t border-r border-[var(--line)] bg-[var(--section-row)] px-2.5 py-2.5" />
@@ -1284,6 +1400,16 @@ function TariffRequestPage({
                           </td>
                         </tr>
                       ),
+                    )}
+                    {isApproverStage && rowsForCurrentStage.length === 0 && (
+                      <tr>
+                        <td
+                          colSpan={12}
+                          className="border-t border-[var(--line)] bg-white px-3 py-3 text-sm text-muted-foreground"
+                        >
+                          Нет отмеченных пунктов тарифа для отображения на этом этапе.
+                        </td>
+                      </tr>
                     )}
                   </tbody>
                   <tfoot>
@@ -1353,7 +1479,10 @@ function TariffRequestPage({
 
               <div className="relative mt-3 rounded-2xl border border-dashed border-[var(--line)] bg-white p-4">
                 <div className="flex flex-wrap items-center justify-between gap-3">
-                  <strong className="text-foreground">Прикрепить документ</strong>
+                  <strong className="text-foreground">
+                    Прикрепить документ{" "}
+                    <span className="font-normal text-muted-foreground">(Только для новых клиентов)</span>
+                  </strong>
                   <label
                     htmlFor={attachmentInputId}
                     className="inline-flex cursor-pointer select-none rounded-xl border border-[var(--line)] bg-white px-4 py-2 text-sm font-semibold text-foreground shadow-sm transition-colors hover:bg-surface-soft"
@@ -1481,41 +1610,20 @@ function TariffRequestPage({
               />
               <CalcRow label="Статус рентабельности РКО" value={profitStatus} tone={profitTone} />
 
-              <div className="mt-4 rounded-2xl border border-dashed border-[var(--line)] bg-white p-4">
-                <strong className="text-foreground">Контрольные проверки</strong>
-                <div className="mt-1 text-xs leading-relaxed text-muted-foreground">
-                  • выбрана только 1 категория тарифа
-                  <br />
-                  • срок мониторинга не превышает 12 месяцев
-                  <br />
-                  • заполнено обоснование
-                  <br />• приложен документ при отклонении выше порога
-                </div>
-              </div>
             </aside>
 
-            {/* Блок 3. Обоснование */}
+            {/* Блок 3. Проект решения ТК */}
             <section className="min-w-0 rounded-3xl border border-[var(--line)] bg-white p-6 shadow-[0_8px_24px_rgba(15,23,42,0.04)] lg:col-start-1 lg:row-start-3">
-              <SectionTitle>Блок 3. Обоснование</SectionTitle>
-              <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
-                <Field label="Краткое обоснование">
-                  <Textarea
-                    placeholder="Опишите цель, экономический эффект, значимость клиента и причину запрашиваемого отклонения от базовых тарифов"
-                    value={briefJustification}
-                    onChange={(e) => setBriefJustification(e.target.value)}
-                    rows={6}
-                  />
-                </Field>
+              <SectionTitle>Блок 3. Проект решения ТК</SectionTitle>
+              <div className="grid grid-cols-1 gap-4">
                 <div>
-                  <Field label="Проект решения ТК">
-                    <Textarea
-                      ref={projectDecisionRef}
-                      placeholder="Текст проекта решения"
-                      value={projectDecision}
-                      onChange={(e) => setProjectDecision(e.target.value)}
-                      rows={8}
-                    />
-                  </Field>
+                  <Textarea
+                    ref={projectDecisionRef}
+                    placeholder="Текст проекта решения"
+                    value={projectDecision}
+                    onChange={(e) => setProjectDecision(e.target.value)}
+                    rows={8}
+                  />
                   <div className="mt-2 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
                     <p className="text-xs leading-relaxed text-muted-foreground">
                       PDF формируется в браузере из полей блока 3 и открывается как загрузка по
@@ -1554,27 +1662,241 @@ function TariffRequestPage({
                 </div>
               </div>
 
-              <div className="mt-4 rounded-2xl border border-[oklch(0.85_0.08_85)] bg-[oklch(0.99_0.03_85)] p-3.5 text-sm leading-relaxed text-foreground">
-                <strong>Маршрут согласования:</strong> руководитель инициатора → секретарь Комитета
-                → члены Тарифного комитета. На этапе голосования доступны действия: «За», «Против»,
-                «Запросить доп. информацию». При запросе доп. информации создается подзадача
-                инициатору с контролем срока исполнения.
-              </div>
-
-              <div className="mt-4 flex flex-wrap gap-3.5">
-                <button className="cursor-pointer rounded-2xl border-none bg-brand-green px-5 py-3.5 text-[15px] font-bold text-white transition-opacity hover:opacity-90">
-                  Отправить на согласование
-                </button>
-                <button className="cursor-pointer rounded-2xl border border-[var(--line)] bg-white px-5 py-3.5 text-[15px] font-bold text-foreground transition-colors hover:bg-surface-soft">
-                  Сохранить
-                </button>
-                <button className="cursor-pointer rounded-2xl border border-dashed border-[var(--line)] bg-surface-soft px-5 py-3.5 text-[15px] font-bold text-foreground transition-colors hover:bg-white">
-                  Предварительный просмотр
-                </button>
-              </div>
+              {flowStage === "initiator" && (
+                <div className="mt-4">
+                  <div className="flex flex-wrap gap-3.5">
+                  <button
+                    type="button"
+                    onClick={() => setApproveAction("initiator")}
+                    className="cursor-pointer rounded-2xl border-none bg-brand-green px-5 py-3.5 text-[15px] font-bold text-white transition-opacity hover:opacity-90"
+                  >
+                    Отправить на согласование
+                  </button>
+                  <button className="cursor-pointer rounded-2xl border border-[var(--line)] bg-white px-5 py-3.5 text-[15px] font-bold text-foreground transition-colors hover:bg-surface-soft">
+                    Сохранить
+                  </button>
+                  <button className="cursor-pointer rounded-2xl border border-dashed border-[var(--line)] bg-surface-soft px-5 py-3.5 text-[15px] font-bold text-foreground transition-colors hover:bg-white">
+                    Предварительный просмотр
+                  </button>
+                </div>
+                </div>
+              )}
+              {flowStage === "manager" && (
+                <div className="mt-4 flex flex-wrap gap-3.5">
+                  <button
+                    type="button"
+                    onClick={() => setApproveAction("manager")}
+                    className="cursor-pointer rounded-2xl border-none bg-brand-green px-5 py-3.5 text-[15px] font-bold text-white transition-opacity hover:opacity-90"
+                  >
+                    Согласовать
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setShowManagerReworkModal(true)}
+                    className="cursor-pointer rounded-2xl border border-[var(--line)] bg-white px-5 py-3.5 text-[15px] font-bold text-foreground transition-colors hover:bg-surface-soft"
+                  >
+                    Вернуть на доработку
+                  </button>
+                </div>
+              )}
+              {flowStage === "secretary" && (
+                <div className="mt-4 flex flex-wrap gap-3.5">
+                  <button
+                    type="button"
+                    onClick={() => setApproveAction("secretary")}
+                    className="cursor-pointer rounded-2xl border-none bg-brand-green px-5 py-3.5 text-[15px] font-bold text-white transition-opacity hover:opacity-90"
+                  >
+                    Согласовать
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setShowManagerReworkModal(true)}
+                    className="cursor-pointer rounded-2xl border border-[var(--line)] bg-white px-5 py-3.5 text-[15px] font-bold text-foreground transition-colors hover:bg-surface-soft"
+                  >
+                    Вернуть на доработку
+                  </button>
+                </div>
+              )}
+              {flowStage === "committee" && (
+                <div className="mt-4 flex flex-wrap gap-3.5">
+                  <button
+                    type="button"
+                    onClick={() => setApproveAction("committee")}
+                    className="cursor-pointer rounded-2xl border-none bg-brand-green px-5 py-3.5 text-[15px] font-bold text-white transition-opacity hover:opacity-90"
+                  >
+                    За
+                  </button>
+                  <button className="cursor-pointer rounded-2xl border border-[var(--line)] bg-white px-5 py-3.5 text-[15px] font-bold text-foreground transition-colors hover:bg-surface-soft">
+                    Против
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setShowExtraInfoModal(true)}
+                    className="cursor-pointer rounded-2xl border border-dashed border-[var(--line)] bg-surface-soft px-5 py-3.5 text-[15px] font-bold text-foreground transition-colors hover:bg-white"
+                  >
+                    Запросить доп. информацию
+                  </button>
+                </div>
+              )}
             </section>
-        </div>
+          </div>
+        )}
       </div>
+      {approveAction && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 px-4">
+          <div className="w-full max-w-[460px] rounded-3xl border border-[var(--line)] bg-white p-6 shadow-[0_20px_48px_rgba(15,23,42,0.28)]">
+            <h3 className="text-lg font-semibold leading-tight text-foreground">
+              {approveActionMeta[approveAction].title}
+            </h3>
+            <p className="mt-2 text-sm leading-relaxed text-muted-foreground">
+              {approveActionMeta[approveAction].description}
+            </p>
+            <div className="mt-5 flex flex-wrap justify-end gap-2.5">
+              <button
+                type="button"
+                onClick={() => setApproveAction(null)}
+                className="rounded-xl border border-[var(--line)] bg-white px-4 py-2 text-sm font-semibold text-foreground transition-colors hover:bg-surface-soft"
+              >
+                Отмена
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  if (approveAction === "initiator") {
+                    setIsInitiatorSubmitted(true);
+                    setFlowStage("manager");
+                    toast.success("Заявка отправлена на согласование", {
+                      description: "Маршрут согласования запущен.",
+                    });
+                  } else if (approveAction === "manager") {
+                    setFlowStage("secretary");
+                    toast.success("Заявка согласована", {
+                      description: "Заявка передана секретарю Комитета.",
+                    });
+                  } else if (approveAction === "secretary") {
+                    setFlowStage("committee");
+                    toast.success("Заявка согласована", {
+                      description: "Заявка передана члену Тарифного комитета.",
+                    });
+                  } else {
+                    toast.success("Решение зафиксировано", {
+                      description: "Голос «За» успешно сохранен.",
+                    });
+                  }
+                  setApproveAction(null);
+                  scrollToTop();
+                }}
+                className="rounded-xl border-none bg-brand-green px-4 py-2 text-sm font-bold text-white transition-opacity hover:opacity-90"
+              >
+                Подтвердить
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+      {showExtraInfoModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 px-4">
+          <div className="w-full max-w-[560px] rounded-3xl border border-[var(--line)] bg-white p-6 shadow-[0_20px_48px_rgba(15,23,42,0.28)]">
+            <h3 className="text-lg font-semibold leading-tight text-foreground">
+              Запрос доп. информации
+            </h3>
+            <p className="mt-2 text-sm leading-relaxed text-muted-foreground">
+              Укажите текст запроса, который нужно передать инициатору.
+            </p>
+            <div className="mt-4">
+              <Textarea
+                placeholder="Текст запроса доп. информации"
+                value={extraInfoReason}
+                onChange={(e) => setExtraInfoReason(e.target.value)}
+                rows={6}
+              />
+            </div>
+            <div className="mt-5 flex flex-wrap justify-end gap-2.5">
+              <button
+                type="button"
+                onClick={() => {
+                  setShowExtraInfoModal(false);
+                  setExtraInfoReason("");
+                }}
+                className="rounded-xl border border-[var(--line)] bg-white px-4 py-2 text-sm font-semibold text-foreground transition-colors hover:bg-surface-soft"
+              >
+                Отмена
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  const reason = extraInfoReason.trim();
+                  if (!reason) {
+                    toast.error("Укажите текст запроса доп. информации");
+                    return;
+                  }
+                  setShowExtraInfoModal(false);
+                  setExtraInfoReason("");
+                  setIsInitiatorSubmitted(false);
+                  setFlowStage("initiator");
+                  toast.success("Запрос доп. информации отправлен", {
+                    description: `Текст: ${reason}`,
+                  });
+                  scrollToTop();
+                }}
+                className="rounded-xl border-none bg-brand-green px-4 py-2 text-sm font-bold text-white transition-opacity hover:opacity-90"
+              >
+                Отправить
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+      {showManagerReworkModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 px-4">
+          <div className="w-full max-w-[560px] rounded-3xl border border-[var(--line)] bg-white p-6 shadow-[0_20px_48px_rgba(15,23,42,0.28)]">
+            <h3 className="text-lg font-semibold leading-tight text-foreground">Возврат на доработку</h3>
+            <p className="mt-2 text-sm leading-relaxed text-muted-foreground">
+              Укажите причину возврата заявки на доработку.
+            </p>
+            <div className="mt-4">
+              <Textarea
+                placeholder="Причина возврата на доработку"
+                value={managerReworkReason}
+                onChange={(e) => setManagerReworkReason(e.target.value)}
+                rows={5}
+              />
+            </div>
+            <div className="mt-5 flex flex-wrap justify-end gap-2.5">
+              <button
+                type="button"
+                onClick={() => {
+                  setShowManagerReworkModal(false);
+                  setManagerReworkReason("");
+                }}
+                className="rounded-xl border border-[var(--line)] bg-white px-4 py-2 text-sm font-semibold text-foreground transition-colors hover:bg-surface-soft"
+              >
+                Отмена
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  const reason = managerReworkReason.trim();
+                  if (!reason) {
+                    toast.error("Укажите причину возврата на доработку");
+                    return;
+                  }
+                  setShowManagerReworkModal(false);
+                  setManagerReworkReason("");
+                  setIsInitiatorSubmitted(false);
+                  setFlowStage("initiator");
+                  toast.success("Заявка возвращена на доработку", {
+                    description: `Причина: ${reason}`,
+                  });
+                }}
+                className="rounded-xl border-none bg-brand-green px-4 py-2 text-sm font-bold text-white transition-opacity hover:opacity-90"
+              >
+                Отправить
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
