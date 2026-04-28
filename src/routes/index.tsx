@@ -3,7 +3,6 @@ import { forwardRef, useEffect, useId, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
 
 import { downloadTariffCommitteePdf } from "@/lib/tariffCommitteePdf";
-
 import standardTariffsCsv from "../data/standard-tariffs.csv?raw";
 
 export const Route = createFileRoute("/")({
@@ -110,14 +109,22 @@ const DEMO_OPERATOR_LOGIN = "00011111";
 const DEMO_OPERATOR_PASSWORD = "pass";
 
 type Screen = "login" | "iin" | "form";
-type ApprovalFlowStage = "initiator" | "manager" | "secretary" | "committee";
-type ApproveAction = "initiator" | "manager" | "secretary" | "committee";
+type ApprovalFlowStage =
+  | "initiator"
+  | "manager"
+  | "secretary"
+  | "committee"
+  | "clientApproval"
+  | "opsSetup";
+type ApproveAction = "initiator" | "manager" | "secretary" | "committee" | "clientApproval";
 
 const APPROVAL_FLOW_STAGES: { id: ApprovalFlowStage; label: string }[] = [
   { id: "initiator", label: "Инициатор" },
   { id: "manager", label: "Руководитель инициатора" },
   { id: "secretary", label: "Секретарь Комитета" },
   { id: "committee", label: "Член ТК" },
+  { id: "clientApproval", label: "Согласование с клиентом" },
+  { id: "opsSetup", label: "Установка тарифов" },
 ];
 
 function AppFlow() {
@@ -692,6 +699,7 @@ function computeBlock2TariffState(
   validityMonths: 3 | 6 | 12,
   discountInput: string,
   selected: Record<string, boolean>,
+  rowDiscountInputs: Record<string, string>,
 ): {
   rowsOut: Block2RowComputed[];
   sumIncome: number;
@@ -743,9 +751,11 @@ function computeBlock2TariffState(
     let forecastNum = 0;
 
     if (sel) {
-      discountCol = `${clampedDiscount}%`;
+      const rowDiscountRaw = rowDiscountInputs[row.rowKey] ?? "";
+      const rowDiscount = rowDiscountRaw.trim() === "" ? clampedDiscount : parseDiscountPercentInput(rowDiscountRaw);
+      discountCol = `${rowDiscount}%`;
       if (cellForMath) {
-        const d = applyDiscountToTariff(cellForMath, clampedDiscount);
+        const d = applyDiscountToTariff(cellForMath, rowDiscount);
         fixStr = "—";
         pctStr = `${formatPctRu(d.pct)}%`;
         minStr = d.minTenge != null ? formatMoneyRu(d.minTenge) : "—";
@@ -756,7 +766,7 @@ function computeBlock2TariffState(
         minStr = "—";
         maxStr = "—";
       }
-      forecastNum = Math.round((row.incomeTenge * (100 - clampedDiscount)) / 100);
+      forecastNum = Math.round((row.incomeTenge * (100 - rowDiscount)) / 100);
       forecastStr = formatMoneyRu(forecastNum);
     }
 
@@ -827,6 +837,7 @@ function TariffRequestPage({
   const [tariffCategory, setTariffCategory] = useState<TariffCategory>("A");
   const [validityMonths, setValidityMonths] = useState<3 | 6 | 12>(12);
   const [discountInput, setDiscountInput] = useState("20");
+  const [rowDiscountInputs, setRowDiscountInputs] = useState<Record<string, string>>({});
   const [selected, setSelected] = useState<Record<string, boolean>>(() =>
     Object.fromEntries(TARIFF_SELECTABLE_ROW_KEYS.map((k) => [k, false])),
   );
@@ -836,13 +847,13 @@ function TariffRequestPage({
   const [managerReworkReason, setManagerReworkReason] = useState("");
   const [showExtraInfoModal, setShowExtraInfoModal] = useState(false);
   const [extraInfoReason, setExtraInfoReason] = useState("");
+  const [clientNegotiationComment, setClientNegotiationComment] = useState("");
   const [reviewQuestion, setReviewQuestion] = useState(
     "Внесение изменений в действующие (в сетку) тарифы на банковское обслуживание ( ЮЛ, ФЛ и др.)",
   );
   const [noteTariff, setNoteTariff] = useState("");
   const [briefJustification, setBriefJustification] = useState("");
   const [projectDecision, setProjectDecision] = useState("");
-  const projectDecisionRef = useRef<HTMLTextAreaElement>(null);
   const [monitoringDate, setMonitoringDate] = useState("");
   const [approver, setApprover] = useState("");
   const attachmentInputId = useId();
@@ -891,8 +902,9 @@ function TariffRequestPage({
   }, [readOnly, client.iinBin]);
 
   const b2 = useMemo(
-    () => computeBlock2TariffState(tariffCategory, validityMonths, discountInput, selected),
-    [tariffCategory, validityMonths, discountInput, selected],
+    () =>
+      computeBlock2TariffState(tariffCategory, validityMonths, discountInput, selected, rowDiscountInputs),
+    [tariffCategory, validityMonths, discountInput, selected, rowDiscountInputs],
   );
   const isApproverStage = flowStage !== "initiator";
   const rowsForCurrentStage = useMemo(
@@ -908,28 +920,37 @@ function TariffRequestPage({
     b2.profit > 0 ? "pos" : b2.profit < 0 ? "neg" : undefined;
   const profitStatus =
     b2.profit > 0 ? "Положительная" : b2.profit < 0 ? "Отрицательная" : "Нулевая";
+  const profitabilityPct = b2.sumForecast !== 0 ? (b2.profit / b2.sumForecast) * 100 : 0;
+  const profitabilityPctDisplay = `${profitabilityPct > 0 ? "+" : ""}${formatPctRu(profitabilityPct)}%`;
 
   const handleDownloadProjectPdf = () => {
     void (async () => {
       try {
-        const decisionFromField =
-          projectDecisionRef.current?.value ?? projectDecision;
+        const selectedTariffs = b2.rowsOut
+          .filter((r) => !r.row.isSection && r.sel)
+          .map((r) => ({
+            code: r.row.code || "—",
+            operation: r.row.name,
+            discount: r.discountCol,
+            approvedTariff: r.pctStr !== "—" ? `${r.pctStr}${r.minStr !== "—" ? `, мин. ${r.minStr}` : ""}` : r.baseStr,
+            forecast: r.forecastStr,
+          }));
         await downloadTariffCommitteePdf({
           clientFullName: client.fullName,
           iinBin: client.iinBin,
           briefJustification,
-          projectDecision: decisionFromField,
+          projectDecision,
           monitoringDate,
           approver,
+          selectedTariffs,
         });
       } catch (err) {
         console.error(err);
-        window.alert(
-          "Не удалось сформировать PDF. Откройте консоль браузера (F12) для подробностей.",
-        );
+        window.alert("Не удалось сформировать PDF. Проверьте данные и попробуйте снова.");
       }
     })();
   };
+
   const scrollToTop = () => {
     window.scrollTo({ top: 0, behavior: "smooth" });
   };
@@ -949,6 +970,10 @@ function TariffRequestPage({
     committee: {
       title: "Голосование члена ТК",
       description: "Подтвердите решение «За» по данной заявке.",
+    },
+    clientApproval: {
+      title: "Согласование утвержденных условий с клиентом",
+      description: "Подтвердите завершение согласования утвержденных условий с клиентом.",
     },
   };
 
@@ -1022,6 +1047,7 @@ function TariffRequestPage({
         {!hideMainContent && (
           <div className="mt-6 grid min-w-0 grid-cols-1 gap-6 lg:grid-cols-[minmax(0,1fr)_min(340px,32vw)] lg:items-start">
             {/* Block 1 */}
+            {flowStage !== "clientApproval" && flowStage !== "opsSetup" && (
             <section className="min-w-0 rounded-3xl border border-[var(--line)] bg-white p-6 shadow-[0_8px_24px_rgba(15,23,42,0.04)] lg:col-start-1 lg:row-start-1">
               <SectionTitle>Блок 1. Информация о клиенте</SectionTitle>
               <p className="-mt-1.5 mb-4 text-[13px] text-muted-foreground">
@@ -1152,8 +1178,10 @@ function TariffRequestPage({
                 />
               </div>
             </section>
+            )}
 
             {/* Block 2 */}
+            {flowStage !== "clientApproval" && flowStage !== "opsSetup" && (
             <section className="min-w-0 rounded-3xl border border-[var(--line)] bg-white p-6 shadow-[0_8px_24px_rgba(15,23,42,0.04)] lg:col-start-1 lg:row-start-2">
               <SectionTitle>Блок 2. Запрашиваемые условия</SectionTitle>
 
@@ -1220,7 +1248,6 @@ function TariffRequestPage({
                     type="text"
                     inputMode="numeric"
                     autoComplete="off"
-                    placeholder="1–100"
                     value={discountInput}
                     onChange={(e) => {
                       const v = e.target.value.replace(/\D/g, "");
@@ -1256,12 +1283,12 @@ function TariffRequestPage({
                     <col style={{ width: "10%" }} />
                     <col style={{ width: "9%" }} />
                     <col style={{ width: "9%" }} />
+                    <col style={{ width: "8%" }} />
                     <col style={{ width: "6%" }} />
-                    <col style={{ width: "6%" }} />
                     <col style={{ width: "5%" }} />
                     <col style={{ width: "5%" }} />
                     <col style={{ width: "5%" }} />
-                    <col style={{ width: "14%" }} />
+                    <col style={{ width: "12%" }} />
                   </colgroup>
                   <thead>
                     <tr>
@@ -1381,7 +1408,32 @@ function TariffRequestPage({
                             {r.incomeStr}
                           </td>
                           <td className="border-t border-r border-[var(--line)] bg-white px-2.5 py-2.5 align-top text-sm leading-snug break-words last:border-r-0">
-                            {r.discountCol}
+                            {flowStage === "initiator" ? (
+                              <Input
+                                type="text"
+                                inputMode="numeric"
+                                autoComplete="off"
+                                value={rowDiscountInputs[r.row.rowKey] ?? (r.sel ? r.discountCol.replace("%", "") : "")}
+                                onChange={(e) => {
+                                  const v = e.target.value.replace(/\D/g, "");
+                                  if (v.length <= 3) {
+                                    setRowDiscountInputs((s) => ({ ...s, [r.row.rowKey]: v }));
+                                  }
+                                }}
+                                onBlur={() => {
+                                  const raw = rowDiscountInputs[r.row.rowKey] ?? "";
+                                  if (raw.trim() === "") return;
+                                  const normalized = parseDiscountPercentInput(raw);
+                                  setRowDiscountInputs((s) => ({
+                                    ...s,
+                                    [r.row.rowKey]: String(normalized),
+                                  }));
+                                }}
+                                disabled={!r.sel}
+                              />
+                            ) : (
+                              r.discountCol
+                            )}
                           </td>
                           <td className="border-t border-r border-[var(--line)] bg-white px-2.5 py-2.5 align-top text-sm last:border-r-0">
                             <span className="block break-all leading-snug">{r.fixStr}</span>
@@ -1576,12 +1628,18 @@ function TariffRequestPage({
                 )}
               </div>
             </section>
+            )}
 
             {/* Прогнозные данные — справа на lg; на мобиле после блока 2 */}
+            {flowStage !== "clientApproval" && flowStage !== "opsSetup" && (
             <aside className="min-w-0 rounded-3xl border border-[var(--line)] bg-white p-5 shadow-[0_12px_28px_rgba(15,23,42,0.07)] lg:sticky lg:top-4 lg:col-start-2 lg:row-start-1 lg:row-span-3 lg:self-start">
               <SectionTitle>Прогнозные данные</SectionTitle>
               <div className="text-xs text-muted-foreground">
                 Сводный калькулятор по выбранным операциям и сроку действия тарифа.
+              </div>
+              <div className="mt-3 rounded-2xl border border-[var(--line)] bg-muted px-4 py-3">
+                <div className="text-xs text-muted-foreground">Доходность клиента по кошельку</div>
+                <div className="mt-1 text-lg font-semibold text-foreground">{client.walletProfit}</div>
               </div>
 
               <div className="my-4 rounded-2xl border border-[var(--total-border)] bg-[var(--total-bg)] p-4">
@@ -1605,66 +1663,58 @@ function TariffRequestPage({
               <CalcRow label="Прогноз недополученного дохода" value={formatMoneyRu(b2.lost)} />
               <CalcRow
                 label="Прогноз рентабельности"
-                value={`${b2.profit > 0 ? "+" : ""}${formatMoneyRu(b2.profit)}`}
+                value={profitabilityPctDisplay}
                 tone={profitTone}
               />
               <CalcRow label="Статус рентабельности РКО" value={profitStatus} tone={profitTone} />
 
             </aside>
+            )}
 
-            {/* Блок 3. Проект решения ТК */}
+            {flowStage !== "clientApproval" && flowStage !== "opsSetup" && (
             <section className="min-w-0 rounded-3xl border border-[var(--line)] bg-white p-6 shadow-[0_8px_24px_rgba(15,23,42,0.04)] lg:col-start-1 lg:row-start-3">
-              <SectionTitle>Блок 3. Проект решения ТК</SectionTitle>
-              <div className="grid grid-cols-1 gap-4">
-                <div>
-                  <Textarea
-                    ref={projectDecisionRef}
-                    placeholder="Текст проекта решения"
-                    value={projectDecision}
-                    onChange={(e) => setProjectDecision(e.target.value)}
-                    rows={8}
-                  />
-                  <div className="mt-2 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-                    <p className="text-xs leading-relaxed text-muted-foreground">
-                      PDF формируется в браузере из полей блока 3 и открывается как загрузка по
-                      временной ссылке (blob).
-                    </p>
-                    <button
-                      type="button"
-                      onClick={handleDownloadProjectPdf}
-                      className="shrink-0 text-left text-sm font-semibold text-brand-green-dark underline decoration-2 underline-offset-4 hover:opacity-90"
-                    >
-                      Скачать PDF «Проект решения ТК»
-                    </button>
-                  </div>
-                  <div className="mt-4 grid grid-cols-1 gap-4 md:grid-cols-2">
-                    <Field label="Дата мониторинга">
-                      <Input
-                        placeholder="Не более 12 месяцев"
-                        value={monitoringDate}
-                        onChange={(e) => setMonitoringDate(e.target.value)}
-                      />
-                    </Field>
-                    <Field label="Визирующий">
-                      <Select
-                        value={approver}
-                        onChange={(e) => setApprover(e.target.value)}
-                      >
-                        <option value="">Выбрать согласующего</option>
-                        <option value="Заместитель директора филиала">Заместитель директора филиала</option>
-                        <option value="Начальник управления РКО">Начальник управления РКО</option>
-                        <option value="Директор департамента корпоративного бизнеса">
-                          Директор департамента корпоративного бизнеса
-                        </option>
-                      </Select>
-                    </Field>
-                  </div>
+              <div className="mt-4">
+                <SectionTitle>Блок 3. Проект решения ТК</SectionTitle>
+                <Textarea
+                  placeholder="Текст проекта решения"
+                  value={projectDecision}
+                  onChange={(e) => setProjectDecision(e.target.value)}
+                  rows={7}
+                />
+                <div className="mt-2 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+                  <p className="text-xs leading-relaxed text-muted-foreground">
+                    PDF формируется в браузере из полей блока 3 и открывается как загрузка по
+                    временной ссылке (blob).
+                  </p>
+                  <button
+                    type="button"
+                    onClick={handleDownloadProjectPdf}
+                    className="shrink-0 text-left text-sm font-semibold text-brand-green-dark underline decoration-2 underline-offset-4 hover:opacity-90"
+                  >
+                    Скачать PDF «Проект решения ТК»
+                  </button>
                 </div>
-              </div>
-
-              {flowStage === "initiator" && (
-                <div className="mt-4">
-                  <div className="flex flex-wrap gap-3.5">
+                <div className="mt-4 grid grid-cols-1 gap-4 md:grid-cols-2">
+                  <Field label="Дата мониторинга">
+                    <Input
+                      placeholder="Не более 12 месяцев"
+                      value={monitoringDate}
+                      onChange={(e) => setMonitoringDate(e.target.value)}
+                    />
+                  </Field>
+                  <Field label="Визирующий">
+                    <Select value={approver} onChange={(e) => setApprover(e.target.value)}>
+                      <option value="">Выбрать согласующего</option>
+                      <option value="Заместитель директора филиала">Заместитель директора филиала</option>
+                      <option value="Начальник управления РКО">Начальник управления РКО</option>
+                      <option value="Директор департамента корпоративного бизнеса">
+                        Директор департамента корпоративного бизнеса
+                      </option>
+                    </Select>
+                  </Field>
+                </div>
+                {flowStage === "initiator" && (
+                  <div className="mt-4 flex flex-wrap gap-3.5">
                   <button
                     type="button"
                     onClick={() => setApproveAction("initiator")}
@@ -1679,8 +1729,8 @@ function TariffRequestPage({
                     Предварительный просмотр
                   </button>
                 </div>
-                </div>
-              )}
+                )}
+              </div>
               {flowStage === "manager" && (
                 <div className="mt-4 flex flex-wrap gap-3.5">
                   <button
@@ -1739,6 +1789,260 @@ function TariffRequestPage({
                 </div>
               )}
             </section>
+            )}
+            {flowStage === "clientApproval" && (
+              <section className="min-w-0 rounded-3xl border border-[var(--line)] bg-white p-6 shadow-[0_8px_24px_rgba(15,23,42,0.04)] lg:col-start-1 lg:col-span-2 lg:row-start-1">
+                <SectionTitle>Согласование утвержденных условий с клиентом</SectionTitle>
+                <div className="rounded-xl border border-[oklch(0.88_0.04_220)] bg-[oklch(0.98_0.02_220)] px-4 py-2.5 text-sm text-foreground">
+                  Все члены ТК проголосовали «За». Инициатору необходимо согласовать утвержденные
+                  условия с клиентом.
+                </div>
+                <div className="mt-3 grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
+                  <InfoBox k="Статус" v="Ожидает клиента" />
+                  <InfoBox k="Решение ТК" v="Утверждено" tone="pos" />
+                  <InfoBox k="Срок условий" v={`${validityMonths} мес.`} />
+                  <InfoBox k="Дата мониторинга" v={monitoringDate || "10.03.2027"} />
+                </div>
+                <div className="mt-4 overflow-hidden rounded-2xl border border-[var(--line)]">
+                  <table className="w-full border-collapse text-sm">
+                    <thead className="bg-[var(--table-head)] text-white">
+                      <tr>
+                        <th className="px-3 py-2 text-left">№</th>
+                        <th className="px-3 py-2 text-left">Операция</th>
+                        <th className="px-3 py-2 text-left">Утвержденный тариф</th>
+                        <th className="px-3 py-2 text-left">Срок действия</th>
+                        <th className="px-3 py-2 text-left">Примечание</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {rowsForCurrentStage.length === 0 ? (
+                        <tr className="bg-white">
+                          <td colSpan={5} className="px-3 py-3 text-muted-foreground">
+                            Нет утвержденных условий для согласования с клиентом.
+                          </td>
+                        </tr>
+                      ) : (
+                        rowsForCurrentStage.map((r) => (
+                          <tr key={`client-approval-${r.row.rowKey}`} className="bg-white">
+                            <td className="border-t border-[var(--line)] px-3 py-2">{r.row.code || "—"}</td>
+                            <td className="border-t border-[var(--line)] px-3 py-2">{r.row.name}</td>
+                            <td className="border-t border-[var(--line)] px-3 py-2">
+                              {r.pctStr !== "—" ? `${r.pctStr}${r.minStr !== "—" ? `, мин. ${r.minStr}` : ""}` : r.baseStr}
+                            </td>
+                            <td className="border-t border-[var(--line)] px-3 py-2">{validityMonths} месяцев</td>
+                            <td className="border-t border-[var(--line)] px-3 py-2">
+                              {noteTariff || "Индивидуальные условия"}
+                            </td>
+                          </tr>
+                        ))
+                      )}
+                    </tbody>
+                  </table>
+                </div>
+                <div className="mt-4">
+                  <Field label="Комментарий по итогам переговоров с клиентом">
+                    <Textarea
+                      placeholder="Зафиксируйте результат согласования условий с клиентом"
+                      value={clientNegotiationComment}
+                      onChange={(e) => setClientNegotiationComment(e.target.value)}
+                      rows={4}
+                    />
+                  </Field>
+                  <div className="mt-3 flex flex-wrap gap-3">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setFlowStage("opsSetup");
+                        toast.success("Клиент согласовал условия", {
+                          description: "Заявка передана в Операционный департамент.",
+                        });
+                        scrollToTop();
+                      }}
+                      className="rounded-xl border-none bg-brand-green px-4 py-2 text-sm font-bold text-white transition-opacity hover:opacity-90"
+                    >
+                      Клиент согласен
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setIsInitiatorSubmitted(false);
+                        setFlowStage("initiator");
+                        toast.error("Клиент не согласовал условия", {
+                          description: "Заявка возвращена инициатору на доработку.",
+                        });
+                        scrollToTop();
+                      }}
+                      className="rounded-xl border border-[var(--line)] bg-white px-4 py-2 text-sm font-semibold text-foreground transition-colors hover:bg-surface-soft"
+                    >
+                      Клиент не согласен
+                    </button>
+                  </div>
+                </div>
+              </section>
+            )}
+            {flowStage === "opsSetup" && (
+              <section className="min-w-0 rounded-3xl border border-[var(--line)] bg-white p-6 shadow-[0_8px_24px_rgba(15,23,42,0.04)] lg:col-start-1 lg:col-span-2 lg:row-start-1">
+                <SectionTitle>Установка тарифов по утвержденному решению</SectionTitle>
+                <div className="rounded-xl border border-[oklch(0.88_0.04_220)] bg-[oklch(0.98_0.02_220)] px-4 py-2.5 text-sm text-foreground">
+                  Клиент согласовал условия. Заявка передана в Операционный департамент для настройки
+                  тарифов.
+                </div>
+                <div className="mt-3 grid grid-cols-1 gap-3 lg:grid-cols-3">
+                  <div className="rounded-2xl border border-[var(--line)] bg-white p-3.5">
+                    <div className="text-sm font-semibold text-foreground">1. Проверить решение ТК</div>
+                    <div className="mt-1 text-xs text-muted-foreground">
+                      Номер дела, срок действия, перечень операций и утвержденные значения.
+                    </div>
+                  </div>
+                  <div className="rounded-2xl border border-[var(--line)] bg-white p-3.5">
+                    <div className="text-sm font-semibold text-foreground">2. Установить тарифы</div>
+                    <div className="mt-1 text-xs text-muted-foreground">
+                      Настроить в учетной системе согласно утвержденным условиям.
+                    </div>
+                  </div>
+                  <div className="rounded-2xl border border-[var(--line)] bg-white p-3.5">
+                    <div className="text-sm font-semibold text-foreground">3. Подтвердить исполнение</div>
+                    <div className="mt-1 text-xs text-muted-foreground">
+                      После установки приложить комментарий и завершить операционный этап.
+                    </div>
+                  </div>
+                </div>
+                <div className="mt-4 overflow-hidden rounded-2xl border border-[var(--line)]">
+                  <table className="w-full border-collapse text-sm">
+                    <thead className="bg-[var(--table-head)] text-white">
+                      <tr>
+                        <th className="px-3 py-2 text-left">Операция</th>
+                        <th className="px-3 py-2 text-left">Значение для установки</th>
+                        <th className="px-3 py-2 text-left">Дата начала</th>
+                        <th className="px-3 py-2 text-left">Дата окончания</th>
+                        <th className="px-3 py-2 text-left">Статус установки</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {rowsForCurrentStage.length === 0 ? (
+                        <tr className="bg-white">
+                          <td colSpan={5} className="px-3 py-3 text-muted-foreground">
+                            Нет условий для установки.
+                          </td>
+                        </tr>
+                      ) : (
+                        rowsForCurrentStage.map((r) => (
+                          <tr key={`ops-setup-${r.row.rowKey}`} className="bg-white">
+                            <td className="border-t border-[var(--line)] px-3 py-2">
+                              {(r.row.code ? `${r.row.code} ` : "") + r.row.name}
+                            </td>
+                            <td className="border-t border-[var(--line)] px-3 py-2">
+                              {r.pctStr !== "—" ? `${r.pctStr}${r.minStr !== "—" ? `, мин. ${r.minStr}` : ""}` : r.baseStr}
+                            </td>
+                            <td className="border-t border-[var(--line)] px-3 py-2">12.03.2026</td>
+                            <td className="border-t border-[var(--line)] px-3 py-2">11.03.2027</td>
+                            <td className="border-t border-[var(--line)] px-3 py-2">Ожидает установки</td>
+                          </tr>
+                        ))
+                      )}
+                    </tbody>
+                  </table>
+                </div>
+                <div className="mt-4">
+                  <Field label="Комментарий Операционного департамента">
+                    <Textarea placeholder="Укажите дату и подтверждение установки тарифов" rows={4} />
+                  </Field>
+                  <div className="mt-3 flex flex-wrap items-center gap-3">
+                    <button
+                      type="button"
+                      onClick={handleDownloadProjectPdf}
+                      className="rounded-xl border border-[var(--line)] bg-white px-4 py-2 text-sm font-semibold text-foreground transition-colors hover:bg-surface-soft"
+                    >
+                      Скачать PDF «Проект решения ТК»
+                    </button>
+                    <button className="rounded-xl border-none bg-brand-green px-4 py-2 text-sm font-bold text-white transition-opacity hover:opacity-90">
+                      Выполнено
+                    </button>
+                  </div>
+                </div>
+              </section>
+            )}
+            {flowStage === "committee" && (
+              <section className="min-w-0 rounded-3xl border border-[var(--line)] bg-white p-6 shadow-[0_8px_24px_rgba(15,23,42,0.04)] lg:col-start-1 lg:row-start-5">
+                <div>
+                  <h3 className="text-base font-semibold text-foreground">История голосования</h3>
+                  <div className="mt-3 overflow-hidden rounded-2xl border border-[var(--line)]">
+                    <table className="w-full border-collapse text-sm">
+                      <thead className="bg-muted text-foreground">
+                        <tr>
+                          <th className="border-b border-[var(--line)] px-3 py-2 text-left font-semibold">
+                            Участник
+                          </th>
+                          <th className="border-b border-[var(--line)] px-3 py-2 text-left font-semibold">
+                            Голос
+                          </th>
+                          <th className="border-b border-[var(--line)] px-3 py-2 text-left font-semibold">
+                            Доп. информация
+                          </th>
+                          <th className="border-b border-[var(--line)] px-3 py-2 text-left font-semibold">
+                            Комментарий
+                          </th>
+                          <th className="border-b border-[var(--line)] px-3 py-2 text-left font-semibold">
+                            Статус
+                          </th>
+                          <th className="border-b border-[var(--line)] px-3 py-2 text-left font-semibold">
+                            Дата/время
+                          </th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        <tr className="bg-white">
+                          <td className="border-b border-[var(--line)] px-3 py-2">Иванов И.И.</td>
+                          <td className="border-b border-[var(--line)] px-3 py-2">За</td>
+                          <td className="border-b border-[var(--line)] px-3 py-2">Нет</td>
+                          <td className="border-b border-[var(--line)] px-3 py-2">
+                            Поддерживаю при условии контроля доходности по итогам периода.
+                          </td>
+                          <td className="border-b border-[var(--line)] px-3 py-2">Согласовано</td>
+                          <td className="border-b border-[var(--line)] px-3 py-2">28.04.2026 14:30</td>
+                        </tr>
+                        <tr className="bg-white">
+                          <td className="border-b border-[var(--line)] px-3 py-2">Сидорова А.К.</td>
+                          <td className="border-b border-[var(--line)] px-3 py-2">За</td>
+                          <td className="border-b border-[var(--line)] px-3 py-2">Нет</td>
+                          <td className="border-b border-[var(--line)] px-3 py-2">
+                            Согласовано, отклонений по расчету не выявлено.
+                          </td>
+                          <td className="border-b border-[var(--line)] px-3 py-2">Согласовано</td>
+                          <td className="border-b border-[var(--line)] px-3 py-2">28.04.2026 14:35</td>
+                        </tr>
+                        <tr className="bg-white">
+                          <td className="px-3 py-2">Петров Н.С.</td>
+                          <td className="px-3 py-2">За</td>
+                          <td className="px-3 py-2">Нет</td>
+                          <td className="px-3 py-2">Поддержано.</td>
+                          <td className="px-3 py-2">На рассмотрении</td>
+                          <td className="px-3 py-2">28.04.2026 14:38</td>
+                        </tr>
+                        <tr className="bg-muted/60">
+                          <td className="border-t border-[var(--line)] px-3 py-2 font-semibold text-foreground">
+                            Итого
+                          </td>
+                          <td className="border-t border-[var(--line)] px-3 py-2 font-semibold text-foreground">
+                            Сумма голосов: 4
+                          </td>
+                          <td className="border-t border-[var(--line)] px-3 py-2 font-semibold text-foreground">
+                            Сумма доп согласов: 0
+                          </td>
+                          <td className="border-t border-[var(--line)] px-3 py-2 font-semibold text-foreground">
+                            Сумма отказано: 0
+                          </td>
+                          <td className="border-t border-[var(--line)] px-3 py-2 font-semibold text-foreground">
+                            Статус: Завершен
+                          </td>
+                          <td className="border-t border-[var(--line)] px-3 py-2" />
+                        </tr>
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              </section>
+            )}
           </div>
         )}
       </div>
@@ -1778,9 +2082,14 @@ function TariffRequestPage({
                     toast.success("Заявка согласована", {
                       description: "Заявка передана члену Тарифного комитета.",
                     });
-                  } else {
+                  } else if (approveAction === "committee") {
+                    setFlowStage("clientApproval");
                     toast.success("Решение зафиксировано", {
                       description: "Голос «За» успешно сохранен.",
+                    });
+                  } else {
+                    toast.success("Согласование с клиентом завершено", {
+                      description: "Утвержденные условия подтверждены клиентом.",
                     });
                   }
                   setApproveAction(null);
