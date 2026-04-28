@@ -1706,7 +1706,7 @@ function TariffRequestPage({
                     onClick={() => setApproveAction("secretary")}
                     className="cursor-pointer rounded-2xl border-none bg-brand-green px-5 py-3.5 text-[15px] font-bold text-white transition-opacity hover:opacity-90"
                   >
-                    Согласовать
+                    Отправить на голосование
                   </button>
                   <button
                     type="button"
