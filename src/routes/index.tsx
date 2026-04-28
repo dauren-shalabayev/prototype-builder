@@ -931,6 +931,11 @@ function TariffRequestPage({
     b2.profit > 0 ? "Положительная" : b2.profit < 0 ? "Отрицательная" : "Нулевая";
   const profitabilityPct = b2.sumForecast !== 0 ? (b2.profit / b2.sumForecast) * 100 : 0;
   const profitabilityPctDisplay = `${profitabilityPct > 0 ? "+" : ""}${formatPctRu(profitabilityPct)}%`;
+  const monitoringPlusOneYearRu = (() => {
+    const d = new Date();
+    d.setFullYear(d.getFullYear() + 1);
+    return d.toLocaleDateString("ru-RU");
+  })();
 
   const handleDownloadProjectPdf = () => {
     void (async () => {
@@ -1646,6 +1651,17 @@ function TariffRequestPage({
             {flowStage !== "clientApproval" && flowStage !== "opsSetup" && (
             <aside className="min-w-0 rounded-3xl border border-[var(--line)] bg-white p-5 shadow-[0_12px_28px_rgba(15,23,42,0.07)] lg:sticky lg:top-4 lg:col-start-2 lg:row-start-1 lg:row-span-3 lg:self-start">
               <SectionTitle>Прогнозные данные</SectionTitle>
+              {flowStage === "committee" && (
+                <div className="-mt-2 mb-3">
+                  <a
+                    href="#"
+                    onClick={(e) => e.preventDefault()}
+                    className="text-sm font-semibold text-brand-green-dark underline decoration-2 underline-offset-4 hover:opacity-90"
+                  >
+                    Дашборд - Детальный анализ клиента
+                  </a>
+                </div>
+              )}
               <div className="text-xs text-muted-foreground">
                 Сводный калькулятор по выбранным операциям и сроку действия тарифа.
               </div>
@@ -1813,7 +1829,7 @@ function TariffRequestPage({
                   <InfoBox k="Статус" v="Ожидает клиента" />
                   <InfoBox k="Решение ТК" v="Утверждено" tone="pos" />
                   <InfoBox k="Срок условий" v={`${validityMonths} мес.`} />
-                  <InfoBox k="Дата мониторинга" v={monitoringDate || "10.03.2027"} />
+                  <InfoBox k="Дата мониторинга" v={monitoringPlusOneYearRu} />
                 </div>
                 <div className="mt-4 overflow-hidden rounded-2xl border border-[var(--line)]">
                   <table className="w-full border-collapse text-sm">
