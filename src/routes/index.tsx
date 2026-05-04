@@ -114,6 +114,7 @@ type ApprovalFlowStage =
   | "manager"
   | "secretary"
   | "committee"
+  | "extraInfoRequest"
   | "clientApproval"
   | "opsSetup";
 type ApproveAction = "initiator" | "manager" | "secretary" | "committee" | "clientApproval";
@@ -406,6 +407,73 @@ function Input(props: React.InputHTMLAttributes<HTMLInputElement>) {
 
 function Select(props: React.SelectHTMLAttributes<HTMLSelectElement>) {
   return <select {...props} className={inputCls} />;
+}
+
+function SearchTagField({
+  values,
+  onChange,
+  options,
+  placeholder,
+}: {
+  values: string[];
+  onChange: (next: string[]) => void;
+  options: string[];
+  placeholder: string;
+}) {
+  const [query, setQuery] = useState("");
+  const filtered = useMemo(() => {
+    const q = query.trim().toLowerCase();
+    if (!q) return [];
+    return options.filter((opt) => !values.includes(opt) && opt.toLowerCase().includes(q));
+  }, [options, query, values]);
+
+  return (
+    <div className="space-y-2">
+      <Input
+        value={query}
+        onChange={(e) => setQuery(e.target.value)}
+        placeholder={placeholder}
+        autoComplete="off"
+      />
+      {filtered.length > 0 && (
+        <div className="flex flex-wrap gap-1.5">
+          {filtered.slice(0, 8).map((opt) => (
+            <button
+              key={opt}
+              type="button"
+              onClick={() => {
+                onChange([...values, opt]);
+                setQuery("");
+              }}
+              className="rounded-full border border-[var(--line)] bg-white px-2.5 py-1 text-xs text-foreground transition-colors hover:bg-surface-soft"
+            >
+              {opt}
+            </button>
+          ))}
+        </div>
+      )}
+      {values.length > 0 && (
+        <div className="flex flex-wrap gap-1.5">
+          {values.map((v) => (
+            <span
+              key={v}
+              className="inline-flex items-center gap-1 rounded-full bg-[oklch(0.95_0.03_145)] px-3 py-1 text-xs font-medium text-foreground"
+            >
+              {v}
+              <button
+                type="button"
+                onClick={() => onChange(values.filter((x) => x !== v))}
+                className="text-muted-foreground hover:text-foreground"
+                aria-label={`Убрать ${v}`}
+              >
+                ×
+              </button>
+            </span>
+          ))}
+        </div>
+      )}
+    </div>
+  );
 }
 
 const Textarea = forwardRef<HTMLTextAreaElement, React.TextareaHTMLAttributes<HTMLTextAreaElement>>(
@@ -848,15 +916,25 @@ function TariffRequestPage({
   const [managerReworkReason, setManagerReworkReason] = useState("");
   const [showExtraInfoModal, setShowExtraInfoModal] = useState(false);
   const [extraInfoReason, setExtraInfoReason] = useState("");
+  const [extraInfoResponseText, setExtraInfoResponseText] = useState("");
+  const [lastCommitteeRequestText, setLastCommitteeRequestText] = useState("");
   const [clientNegotiationComment, setClientNegotiationComment] = useState("");
   const [reviewQuestion, setReviewQuestion] = useState(
-    "Внесение изменений в действующие (в сетку) тарифы на банковское обслуживание ( ЮЛ, ФЛ и др.)",
+    "Установление индивидуального тарифа комиссионного вознаграждения",
   );
-  const [noteTariff, setNoteTariff] = useState("");
   const [briefJustification, setBriefJustification] = useState("");
+  const [tariffManualValues, setTariffManualValues] = useState<
+    Record<string, { fix?: string; pct?: string; min?: string; max?: string }>
+  >({});
   const [projectDecision, setProjectDecision] = useState("");
   const [monitoringDate, setMonitoringDate] = useState("");
-  const [approver, setApprover] = useState("");
+  const [opsRole1, setOpsRole1] = useState("");
+  const [opsRole2, setOpsRole2] = useState("");
+  const [opsRole3, setOpsRole3] = useState("");
+  const [responsibleAssignees, setResponsibleAssignees] = useState<string[]>([]);
+  const [secretaryChair, setSecretaryChair] = useState("");
+  const [secretaryDeputyChair, setSecretaryDeputyChair] = useState("");
+  const [secretaryCommitteeMembers, setSecretaryCommitteeMembers] = useState<string[]>(Array(6).fill(""));
   const attachmentInputId = useId();
   const [attachments, setAttachments] = useState<{ id: string; file: File; previewUrl?: string }[]>(
     [],
@@ -955,7 +1033,7 @@ function TariffRequestPage({
           briefJustification,
           projectDecision,
           monitoringDate,
-          approver,
+          approver: "",
           selectedTariffs,
         });
       } catch (err) {
@@ -1197,112 +1275,96 @@ function TariffRequestPage({
             {/* Block 2 */}
             {flowStage !== "clientApproval" && flowStage !== "opsSetup" && (
             <section className="min-w-0 rounded-3xl border border-[var(--line)] bg-white p-6 shadow-[0_8px_24px_rgba(15,23,42,0.04)] lg:col-start-1 lg:row-start-2">
-              <SectionTitle>Блок 2. Запрашиваемые условия</SectionTitle>
+              {flowStage !== "extraInfoRequest" ? (
+                <>
+                  <SectionTitle>Блок 2. Запрашиваемые условия</SectionTitle>
 
-              <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
-                <Field
-                  label="Вопрос на рассмотрение"
-                  className="relative z-20 md:col-span-2"
-                  labelClassName="mb-3 text-[18px] leading-tight font-semibold text-foreground"
-                >
-                  <Select value={reviewQuestion} onChange={(e) => setReviewQuestion(e.target.value)}>
-                    <option value="Внесение изменений в действующие (в сетку) тарифы на банковское обслуживание ( ЮЛ, ФЛ и др.)">
-                      Внесение изменений в действующие (в сетку) тарифы на банковское обслуживание ( ЮЛ,
-                      ФЛ и др.)
-                    </option>
-                    <option value="Установление индивидуального тарифа комиссионного вознаграждения">
-                      Установление индивидуального тарифа комиссионного вознаграждения
-                    </option>
-                    <option value="Возврат/списание/аннулирование комиссии клиентам Банка">
-                      Возврат/списание/аннулирование комиссии клиентам Банка
-                    </option>
-                    <option value="ЮЛ Мониторинговый отчет по установленным тарифам">
-                      ЮЛ Мониторинговый отчет по установленным тарифам
-                    </option>
-                    <option value="Прочие вопросы ТК, не вошедшие в основной перечень">
-                      Прочие вопросы ТК, не вошедшие в основной перечень
-                    </option>
-                  </Select>
-                </Field>
-                <Field label="Краткое обоснование" className="md:col-span-2">
-                  <Textarea
-                    placeholder="Опишите цель, экономический эффект, значимость клиента и причину запрашиваемого отклонения от базовых тарифов"
-                    value={briefJustification}
-                    onChange={(e) => setBriefJustification(e.target.value)}
-                    rows={6}
-                  />
-                </Field>
-                <Field label="Выберите категорию тарифа (одна категория)">
-                  <Select
-                    value={tariffCategory}
-                    onChange={(e) => setTariffCategory(e.target.value as TariffCategory)}
-                  >
-                    <option value="A">Тариф категории A</option>
-                    <option value="B">Тариф категории B</option>
-                    <option value="C">Тариф категории C</option>
-                    <option value="D">Тариф категории D</option>
-                    <option value="E">Тариф категории E</option>
-                    <option value="F">Тариф категории F</option>
-                  </Select>
-                </Field>
-                <Field label="Выберите срок действия тарифа">
-                  <Select
-                    value={String(validityMonths)}
-                    onChange={(e) => setValidityMonths(Number(e.target.value) as 3 | 6 | 12)}
-                  >
-                    <option value="3">3 месяца</option>
-                    <option value="6">6 месяцев</option>
-                    <option value="12">12 месяцев</option>
-                  </Select>
-                </Field>
-              </div>
-              <div className="mt-4 grid grid-cols-1 gap-4 md:grid-cols-2">
-                <Field label="Размер скидки, % (от 1 до 100)">
-                  <Input
-                    type="text"
-                    inputMode="numeric"
-                    autoComplete="off"
-                    value={discountInput}
-                    onChange={(e) => {
-                      const v = e.target.value
-                        .replace(",", ".")
-                        .replace(/[^0-9.]/g, "")
-                        .replace(/(\..*)\./g, "$1");
-                      if (v.length <= 6) setDiscountInput(v);
-                    }}
-                    onBlur={() => {
-                      const t = discountInput.trim();
-                      if (t === "") return;
-                      const n = Number(t.replace(",", "."));
-                      if (!Number.isFinite(n) || n < 1) setDiscountInput("1");
-                      else setDiscountInput(String(parseDiscountPercentInput(t)));
-                    }}
-                  />
-                </Field>
-                <Field label="Примечание к расчету">
-                  <Input
-                    placeholder="Краткий комментарий"
-                    value={noteTariff}
-                    onChange={(e) => setNoteTariff(e.target.value)}
-                  />
-                </Field>
-              </div>
+                  <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+                    <Field
+                      label="Вопрос на рассмотрение"
+                      className="relative z-20 md:col-span-2"
+                      labelClassName="mb-3 text-[18px] leading-tight font-semibold text-foreground"
+                    >
+                      <Select value={reviewQuestion} onChange={(e) => setReviewQuestion(e.target.value)}>
+                        <option value="Установление индивидуального тарифа комиссионного вознаграждения">
+                          Установление индивидуального тарифа комиссионного вознаграждения
+                        </option>
+                      </Select>
+                    </Field>
+                    <Field label="Краткое обоснование" className="md:col-span-2">
+                      <Textarea
+                        placeholder="Опишите цель, экономический эффект, значимость клиента и причину запрашиваемого отклонения от базовых тарифов"
+                        value={briefJustification}
+                        onChange={(e) => setBriefJustification(e.target.value)}
+                        rows={6}
+                      />
+                    </Field>
+                    <Field label="Выберите категорию тарифа (одна категория)">
+                      <Select
+                        value={tariffCategory}
+                        onChange={(e) => setTariffCategory(e.target.value as TariffCategory)}
+                      >
+                        <option value="A">Тариф категории A</option>
+                        <option value="B">Тариф категории B</option>
+                        <option value="C">Тариф категории C</option>
+                        <option value="D">Тариф категории D</option>
+                        <option value="E">Тариф категории E</option>
+                        <option value="F">Тариф категории F</option>
+                      </Select>
+                    </Field>
+                    <Field label="Выберите срок действия тарифа">
+                      <Select
+                        value={String(validityMonths)}
+                        onChange={(e) => setValidityMonths(Number(e.target.value) as 3 | 6 | 12)}
+                      >
+                        <option value="3">3 месяца</option>
+                        <option value="6">6 месяцев</option>
+                        <option value="12">12 месяцев</option>
+                      </Select>
+                    </Field>
+                  </div>
+                  <div className="mt-4 grid grid-cols-1 gap-4 md:grid-cols-2">
+                    <Field label="Размер скидки, % (от 1 до 100)">
+                      <Input
+                        type="text"
+                        inputMode="numeric"
+                        autoComplete="off"
+                        value={discountInput}
+                        onChange={(e) => {
+                          const v = e.target.value
+                            .replace(",", ".")
+                            .replace(/[^0-9.]/g, "")
+                            .replace(/(\..*)\./g, "$1");
+                          if (v.length <= 6) setDiscountInput(v);
+                        }}
+                        onBlur={() => {
+                          const t = discountInput.trim();
+                          if (t === "") return;
+                          const n = Number(t.replace(",", "."));
+                          if (!Number.isFinite(n) || n < 1) setDiscountInput("1");
+                          else setDiscountInput(String(parseDiscountPercentInput(t)));
+                        }}
+                      />
+                    </Field>
+                  </div>
+                </>
+              ) : null}
 
               <div className="mt-[18px] min-w-0">
                 <table className="w-full table-fixed border-separate border-spacing-0 overflow-hidden rounded-2xl border border-[var(--line)] text-sm leading-normal [&_thead_th]:border-r [&_thead_th]:border-white/15 [&_thead_th:last-child]:border-r-0">
                   <colgroup>
                     <col style={{ width: "5%" }} />
                     <col style={{ width: "5%" }} />
-                    <col style={{ width: "21%" }} />
-                    <col style={{ width: "10%" }} />
-                    <col style={{ width: "9%" }} />
+                    <col style={{ width: "18%" }} />
                     <col style={{ width: "9%" }} />
                     <col style={{ width: "8%" }} />
-                    <col style={{ width: "6%" }} />
-                    <col style={{ width: "5%" }} />
-                    <col style={{ width: "5%" }} />
-                    <col style={{ width: "5%" }} />
-                    <col style={{ width: "12%" }} />
+                    <col style={{ width: "8%" }} />
+                    <col style={{ width: "7%" }} />
+                    <col style={{ width: "8%" }} />
+                    <col style={{ width: "7%" }} />
+                    <col style={{ width: "7%" }} />
+                    <col style={{ width: "7%" }} />
+                    <col style={{ width: "11%" }} />
                   </colgroup>
                   <thead>
                     <tr>
@@ -1396,12 +1458,22 @@ function TariffRequestPage({
                             <input
                               type="checkbox"
                               checked={r.sel}
-                              onChange={() =>
+                              onChange={() => {
+                                const willSelect = !r.sel;
                                 setSelected((s) => ({
                                   ...s,
-                                  [r.row.rowKey]: !s[r.row.rowKey],
-                                }))
-                              }
+                                  [r.row.rowKey]: willSelect,
+                                }));
+                                if (willSelect && (rowDiscountInputs[r.row.rowKey] ?? "").trim() === "") {
+                                  const preparedDiscount = discountInput.trim();
+                                  if (preparedDiscount !== "") {
+                                    setRowDiscountInputs((s) => ({
+                                      ...s,
+                                      [r.row.rowKey]: String(parseDiscountPercentInput(preparedDiscount)),
+                                    }));
+                                  }
+                                }
+                              }}
                               className="h-4 w-4 accent-brand-green"
                               aria-label={`Выбрать операцию ${r.row.code || r.row.name.slice(0, 40)}`}
                             />
@@ -1427,7 +1499,12 @@ function TariffRequestPage({
                                 type="text"
                                 inputMode="numeric"
                                 autoComplete="off"
-                                value={rowDiscountInputs[r.row.rowKey] ?? (r.sel ? r.discountCol.replace("%", "") : "")}
+                                value={
+                                  rowDiscountInputs[r.row.rowKey] ??
+                                  (r.sel && discountInput.trim() !== ""
+                                    ? String(parseDiscountPercentInput(discountInput))
+                                    : "")
+                                }
                                 onChange={(e) => {
                                   const v = e.target.value
                                     .replace(",", ".")
@@ -1452,17 +1529,65 @@ function TariffRequestPage({
                               r.discountCol
                             )}
                           </td>
-                          <td className="border-t border-r border-[var(--line)] bg-white px-2.5 py-2.5 align-top text-sm last:border-r-0">
-                            <span className="block break-all leading-snug">{r.fixStr}</span>
+                          <td className="border-t border-r border-[var(--line)] bg-white px-2 py-2 align-top text-sm last:border-r-0">
+                            <Input
+                              value={tariffManualValues[r.row.rowKey]?.fix ?? ""}
+                              onChange={(e) =>
+                                setTariffManualValues((prev) => ({
+                                  ...prev,
+                                  [r.row.rowKey]: {
+                                    ...prev[r.row.rowKey],
+                                    fix: e.target.value,
+                                  },
+                                }))
+                              }
+                              placeholder={r.fixStr}
+                            />
                           </td>
-                          <td className="border-t border-r border-[var(--line)] bg-white px-2.5 py-2.5 align-top text-sm last:border-r-0">
-                            <span className="block break-all leading-snug">{r.pctStr}</span>
+                          <td className="border-t border-r border-[var(--line)] bg-white px-2 py-2 align-top text-sm last:border-r-0">
+                            <Input
+                              value={tariffManualValues[r.row.rowKey]?.pct ?? ""}
+                              onChange={(e) =>
+                                setTariffManualValues((prev) => ({
+                                  ...prev,
+                                  [r.row.rowKey]: {
+                                    ...prev[r.row.rowKey],
+                                    pct: e.target.value,
+                                  },
+                                }))
+                              }
+                              placeholder={r.pctStr}
+                            />
                           </td>
-                          <td className="border-t border-r border-[var(--line)] bg-white px-2.5 py-2.5 align-top text-sm last:border-r-0">
-                            <span className="block break-all leading-snug">{r.minStr}</span>
+                          <td className="border-t border-r border-[var(--line)] bg-white px-2 py-2 align-top text-sm last:border-r-0">
+                            <Input
+                              value={tariffManualValues[r.row.rowKey]?.min ?? ""}
+                              onChange={(e) =>
+                                setTariffManualValues((prev) => ({
+                                  ...prev,
+                                  [r.row.rowKey]: {
+                                    ...prev[r.row.rowKey],
+                                    min: e.target.value,
+                                  },
+                                }))
+                              }
+                              placeholder={r.minStr}
+                            />
                           </td>
-                          <td className="border-t border-r border-[var(--line)] bg-white px-2.5 py-2.5 align-top text-sm last:border-r-0">
-                            <span className="block break-all leading-snug">{r.maxStr}</span>
+                          <td className="border-t border-r border-[var(--line)] bg-white px-2 py-2 align-top text-sm last:border-r-0">
+                            <Input
+                              value={tariffManualValues[r.row.rowKey]?.max ?? ""}
+                              onChange={(e) =>
+                                setTariffManualValues((prev) => ({
+                                  ...prev,
+                                  [r.row.rowKey]: {
+                                    ...prev[r.row.rowKey],
+                                    max: e.target.value,
+                                  },
+                                }))
+                              }
+                              placeholder={r.maxStr}
+                            />
                           </td>
                           <td className="border-t border-r border-[var(--line)] bg-white px-2.5 py-2.5 align-top text-sm font-medium leading-snug break-words last:border-r-0">
                             {r.forecastStr}
@@ -1546,11 +1671,16 @@ function TariffRequestPage({
                 отображаются следующим участникам маршрута.
               </p>
 
-              <div className="relative mt-3 rounded-2xl border border-dashed border-[var(--line)] bg-white p-4">
+              {flowStage !== "extraInfoRequest" && (
+                <div className="relative mt-3 rounded-2xl border border-dashed border-[var(--line)] bg-white p-4">
                 <div className="flex flex-wrap items-center justify-between gap-3">
                   <strong className="text-foreground">
                     Прикрепить документ{" "}
-                    <span className="font-normal text-muted-foreground">(Только для новых клиентов)</span>
+                    <span className="font-normal text-muted-foreground">
+                      {flowStage === "extraInfoRequest"
+                        ? "(В рамках дополнительного запроса по клиенту)"
+                        : "(При необходимости)"}
+                    </span>
                   </strong>
                   <label
                     htmlFor={attachmentInputId}
@@ -1582,9 +1712,9 @@ function TariffRequestPage({
                   }}
                 />
                 <div className="mt-1 text-xs leading-relaxed text-muted-foreground">
-                  При необходимости вложите оборотно-сальдовую ведомость, выписку по счету или иные
-                  финансовые документы, подтверждающие расходы клиента. Кнопка «Обзор…» открывает
-                  выбор файлов; ниже показывается краткий обзор вложений.
+                  Вложите оборотно-сальдовую ведомость, выписку по счету или иные подтверждающие
+                  документы. Кнопка «Обзор…» открывает выбор файлов; ниже показывается краткий обзор
+                  вложений.
                 </div>
                 {attachments.length > 0 ? (
                   <ul className="mt-3 space-y-2">
@@ -1643,8 +1773,168 @@ function TariffRequestPage({
                     Файлы не выбраны — нажмите «Обзор…», чтобы добавить вложения.
                   </p>
                 )}
-              </div>
+                </div>
+              )}
             </section>
+            )}
+
+            {flowStage === "extraInfoRequest" && (
+              <section className="min-w-0 rounded-3xl border border-[var(--line)] bg-white p-6 shadow-[0_8px_24px_rgba(15,23,42,0.04)] lg:col-start-1 lg:row-start-3">
+                <SectionTitle>Дополнительный запрос по клиенту</SectionTitle>
+                <p className="mt-2 rounded-xl border border-[var(--line)] bg-surface-soft px-4 py-3 text-sm text-foreground">
+                  {extraInfoReason.trim() || "Запрос доп. информации без текста."}
+                </p>
+                <div className="mt-4">
+                  <Field label="Текст ответа">
+                    <Textarea
+                      placeholder="Укажите ответ по дополнительному запросу"
+                      value={extraInfoResponseText}
+                      onChange={(e) => setExtraInfoResponseText(e.target.value)}
+                      rows={4}
+                    />
+                  </Field>
+                </div>
+                <div className="relative mt-3 rounded-2xl border border-dashed border-[var(--line)] bg-white p-4">
+                  <div className="flex flex-wrap items-center justify-between gap-3">
+                    <strong className="text-foreground">
+                      Прикрепить документ{" "}
+                      <span className="font-normal text-muted-foreground">
+                        (В рамках дополнительного запроса по клиенту)
+                      </span>
+                    </strong>
+                    <label
+                      htmlFor={attachmentInputId}
+                      className="inline-flex cursor-pointer select-none rounded-xl border border-[var(--line)] bg-white px-4 py-2 text-sm font-semibold text-foreground shadow-sm transition-colors hover:bg-surface-soft"
+                    >
+                      Обзор…
+                    </label>
+                  </div>
+                  <input
+                    id={attachmentInputId}
+                    type="file"
+                    multiple
+                    aria-label="Выбор файлов для вложения"
+                    className="fixed left-0 top-0 -z-10 h-px w-px overflow-hidden opacity-0"
+                    onChange={(e) => {
+                      const list = e.target.files;
+                      if (!list?.length) return;
+                      setAttachments((prev) => [
+                        ...prev,
+                        ...Array.from(list).map((file) => {
+                          const id = newAttachmentId();
+                          const previewUrl = file.type.startsWith("image/")
+                            ? URL.createObjectURL(file)
+                            : undefined;
+                          return { id, file, previewUrl };
+                        }),
+                      ]);
+                      e.target.value = "";
+                    }}
+                  />
+                  <div className="mt-1 text-xs leading-relaxed text-muted-foreground">
+                    Вложите оборотно-сальдовую ведомость, выписку по счету или иные подтверждающие
+                    документы. Кнопка «Обзор…» открывает выбор файлов; ниже показывается краткий обзор
+                    вложений.
+                  </div>
+                  {attachments.length > 0 ? (
+                    <ul className="mt-3 space-y-2">
+                      {attachments.map(({ id, file, previewUrl }) => {
+                        const extPart = file.name.includes(".")
+                          ? file.name.split(".").pop()?.toUpperCase()
+                          : "";
+                        const ext = extPart || "FILE";
+                        return (
+                          <li
+                            key={id}
+                            className="flex items-start gap-3 rounded-xl border border-[var(--line)] bg-white p-3 text-sm shadow-sm"
+                          >
+                            {previewUrl ? (
+                              <img
+                                src={previewUrl}
+                                alt=""
+                                className="h-14 w-14 shrink-0 rounded-lg border border-[var(--line)] object-cover"
+                              />
+                            ) : (
+                              <div className="flex h-14 w-14 shrink-0 items-center justify-center rounded-lg border border-dashed border-[var(--line)] bg-surface-soft text-[10px] font-bold text-muted-foreground">
+                                {ext}
+                              </div>
+                            )}
+                            <div className="min-w-0 flex-1">
+                              <div className="truncate font-medium text-foreground">{file.name}</div>
+                              <div className="mt-0.5 text-xs text-muted-foreground">
+                                {formatFileSize(file.size)}
+                                {file.type ? ` · ${file.type}` : ""}
+                                {file.lastModified
+                                  ? ` · изменён ${new Date(file.lastModified).toLocaleString("ru-RU", { dateStyle: "short", timeStyle: "short" })}`
+                                  : ""}
+                              </div>
+                            </div>
+                            <button
+                              type="button"
+                              className="shrink-0 rounded-lg border border-[var(--line)] bg-surface-soft px-2.5 py-1.5 text-xs font-semibold text-foreground transition-colors hover:bg-white"
+                              onClick={() =>
+                                setAttachments((prev) => {
+                                  const hit = prev.find((a) => a.id === id);
+                                  if (hit?.previewUrl) {
+                                    URL.revokeObjectURL(hit.previewUrl);
+                                  }
+                                  return prev.filter((a) => a.id !== id);
+                                })
+                              }
+                            >
+                              Удалить
+                            </button>
+                          </li>
+                        );
+                      })}
+                    </ul>
+                  ) : (
+                    <p className="mt-3 rounded-xl border border-dashed border-[var(--line)] bg-white/60 py-6 text-center text-xs text-muted-foreground">
+                      Файлы не выбраны — нажмите «Обзор…», чтобы добавить вложения.
+                    </p>
+                  )}
+                </div>
+              </section>
+            )}
+            {flowStage === "extraInfoRequest" && (
+              <section className="min-w-0 rounded-3xl border border-[var(--line)] bg-white p-6 shadow-[0_8px_24px_rgba(15,23,42,0.04)] lg:col-start-1 lg:row-start-5">
+                <div className="flex flex-wrap justify-start gap-2.5">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      toast.success("Черновик сохранен", {
+                        description: "Дополнительный запрос сохранен без отправки.",
+                      });
+                    }}
+                    className="rounded-xl border border-[var(--line)] bg-white px-4 py-2 text-sm font-semibold text-foreground transition-colors hover:bg-surface-soft"
+                  >
+                    Сохранить черновик
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const reason = extraInfoReason.trim();
+                      if (!reason) {
+                        toast.error("Укажите текст запроса доп. информации");
+                        return;
+                      }
+                      setShowExtraInfoModal(false);
+                      setApproveAction(null);
+                      setShowManagerReworkModal(false);
+                      setLastCommitteeRequestText(reason);
+                      setExtraInfoReason("");
+                      setFlowStage("committee");
+                      toast.success("Запрос доп. информации отправлен", {
+                        description: `Текст: ${reason}`,
+                      });
+                      scrollToTop();
+                    }}
+                    className="rounded-xl border-none bg-brand-green px-4 py-2 text-sm font-bold text-white transition-opacity hover:opacity-90"
+                  >
+                    Отправить
+                  </button>
+                </div>
+              </section>
             )}
 
             {/* Прогнозные данные — справа на lg; на мобиле после блока 2 */}
@@ -1699,12 +1989,88 @@ function TariffRequestPage({
             </aside>
             )}
 
-            {flowStage !== "clientApproval" && flowStage !== "opsSetup" && (
-            <section className="min-w-0 rounded-3xl border border-[var(--line)] bg-white p-6 shadow-[0_8px_24px_rgba(15,23,42,0.04)] lg:col-start-1 lg:row-start-3">
+            {flowStage === "initiator" && (
+              <section className="min-w-0 rounded-3xl border border-[var(--line)] bg-white p-6 shadow-[0_8px_24px_rgba(15,23,42,0.04)] lg:col-start-1 lg:row-start-3">
+                <SectionTitle>Назначение ответственных за исполнение решения</SectionTitle>
+                <div className="mt-3">
+                  <Field label="Ответственные">
+                    <SearchTagField
+                      values={responsibleAssignees}
+                      onChange={setResponsibleAssignees}
+                      options={[
+                        "Иванов И.И.",
+                        "Петров П.П.",
+                        "Сидорова А.К.",
+                        "Ким Д.В.",
+                        "Ахметов Н.С.",
+                        "Тлеубердиева М.Е.",
+                      ]}
+                      placeholder="Поиск по фамилии"
+                    />
+                  </Field>
+                </div>
+              </section>
+            )}
+            {flowStage === "secretary" && (
+              <section className="min-w-0 rounded-3xl border border-[var(--line)] bg-white p-6 shadow-[0_8px_24px_rgba(15,23,42,0.04)] lg:col-start-1 lg:row-start-3">
+                <SectionTitle>Выбор членов комитета</SectionTitle>
+                <div className="mt-3 grid grid-cols-1 gap-4 md:grid-cols-2">
+                  <Field label="Председатель ТК">
+                    <Select value={secretaryChair} onChange={(e) => setSecretaryChair(e.target.value)}>
+                      <option value="">Выбрать</option>
+                      <option value="Саимов Е.И.">Саимов Е.И.</option>
+                      <option value="Иванов И.И.">Иванов И.И.</option>
+                      <option value="Кожамяберов Е.С.">Кожамяберов Е.С.</option>
+                    </Select>
+                  </Field>
+                  <Field label="Зам. Председателя">
+                    <Select
+                      value={secretaryDeputyChair}
+                      onChange={(e) => setSecretaryDeputyChair(e.target.value)}
+                    >
+                      <option value="">Выбрать</option>
+                      <option value="Талгатова Д.С.">Талгатова Д.С.</option>
+                      <option value="Сидорова А.К.">Сидорова А.К.</option>
+                      <option value="Турген Е.А.">Турген Е.А.</option>
+                    </Select>
+                  </Field>
+                  {secretaryCommitteeMembers.map((member, idx) => (
+                    <Field key={`member-${idx}`} label={`Член ТК - ${idx + 1}`}>
+                      <Select
+                        value={member}
+                        onChange={(e) =>
+                          setSecretaryCommitteeMembers((prev) =>
+                            prev.map((m, i) => (i === idx ? e.target.value : m)),
+                          )
+                        }
+                      >
+                        <option value="">Выбрать</option>
+                        <option value="Дунапов Г.С.">Дунапов Г.С.</option>
+                        <option value="Кожамяберов Е.С.">Кожамяберов Е.С.</option>
+                        <option value="Турген Е.А.">Турген Е.А.</option>
+                        <option value="Мамбетова Н.Д.">Мамбетова Н.Д.</option>
+                        <option value="Тлесов С.Г.">Тлесов С.Г.</option>
+                        <option value="Иванов И.И.">Иванов И.И.</option>
+                        <option value="Сидорова А.К.">Сидорова А.К.</option>
+                      </Select>
+                    </Field>
+                  ))}
+                </div>
+              </section>
+            )}
+            {flowStage !== "clientApproval" && flowStage !== "opsSetup" && flowStage !== "extraInfoRequest" && (
+            <section className="min-w-0 rounded-3xl border border-[var(--line)] bg-white p-6 shadow-[0_8px_24px_rgba(15,23,42,0.04)] lg:col-start-1 lg:row-start-4">
               <div className="mt-4">
                 <SectionTitle>Блок 3. Проект решения ТК</SectionTitle>
                 <Textarea
-                  placeholder="Текст проекта решения"
+                  placeholder="Пример решения:
+Принимая во внимание ходатайство Департамента по работе с корпоративными клиентами №2, установить клиенту Банка ТОО «Яблочко» БИН 00000000000 индивидуальные тарифы согласно тарифной категории DZERD (не включая документарные операции) в виде годовой абонентской платы в размере 2 500 000 тенге сроком на 12 месяцев.
+1) Тарифы ввести с даты подписания заявления на подключение пакетного предложения «Безлимит». Остальные тарифы комиссионного вознаграждения установить согласно тарифной категории DZERD;
+2) Управление №1 Департамента по работе с корпоративными клиентами №2:
+довести о принятом решении до сведения ответственных и заинтересованных подразделений Банка;
+довести о принятом Решении до сведения клиента;
+в срок до 20.03.2027 года предоставить на рассмотрение Тарифного комитета мониторинговый отчет об экономической эффективности установленных тарифов по состоянию на 01.03.2027 года.
+3) Внесение изменений в тарифы поручить: Управлению кассового обслуживания Операционного Департамента;"
                   value={projectDecision}
                   onChange={(e) => setProjectDecision(e.target.value)}
                   rows={7}
@@ -1729,16 +2095,6 @@ function TariffRequestPage({
                       value={monitoringDate}
                       onChange={(e) => setMonitoringDate(e.target.value)}
                     />
-                  </Field>
-                  <Field label="Визирующий">
-                    <Select value={approver} onChange={(e) => setApprover(e.target.value)}>
-                      <option value="">Выбрать согласующего</option>
-                      <option value="Заместитель директора филиала">Заместитель директора филиала</option>
-                      <option value="Начальник управления РКО">Начальник управления РКО</option>
-                      <option value="Директор департамента корпоративного бизнеса">
-                        Директор департамента корпоративного бизнеса
-                      </option>
-                    </Select>
                   </Field>
                 </div>
                 {flowStage === "initiator" && (
@@ -1809,7 +2165,9 @@ function TariffRequestPage({
                   </button>
                   <button
                     type="button"
-                    onClick={() => setShowExtraInfoModal(true)}
+                    onClick={() => {
+                      setShowExtraInfoModal(true);
+                    }}
                     className="cursor-pointer rounded-2xl border border-dashed border-[var(--line)] bg-surface-soft px-5 py-3.5 text-[15px] font-bold text-foreground transition-colors hover:bg-white"
                   >
                     Запросить доп. информацию
@@ -1858,9 +2216,7 @@ function TariffRequestPage({
                               {r.pctStr !== "—" ? `${r.pctStr}${r.minStr !== "—" ? `, мин. ${r.minStr}` : ""}` : r.baseStr}
                             </td>
                             <td className="border-t border-[var(--line)] px-3 py-2">{validityMonths} месяцев</td>
-                            <td className="border-t border-[var(--line)] px-3 py-2">
-                              {noteTariff || "Индивидуальные условия"}
-                            </td>
+                            <td className="border-t border-[var(--line)] px-3 py-2">Индивидуальные условия</td>
                           </tr>
                         ))
                       )}
@@ -1975,6 +2331,29 @@ function TariffRequestPage({
                   <Field label="Комментарий Операционного департамента">
                     <Textarea placeholder="Укажите дату и подтверждение установки тарифов" rows={4} />
                   </Field>
+                  <div className="mt-4 grid grid-cols-1 gap-4 md:grid-cols-3">
+                    <Field label="Роль 1">
+                      <Select value={opsRole1} onChange={(e) => setOpsRole1(e.target.value)}>
+                        <option value="">Выбрать роль</option>
+                        <option value="Инициатор">Инициатор</option>
+                        <option value="Согласующий">Согласующий</option>
+                      </Select>
+                    </Field>
+                    <Field label="Роль 2">
+                      <Select value={opsRole2} onChange={(e) => setOpsRole2(e.target.value)}>
+                        <option value="">Выбрать роль</option>
+                        <option value="Секретарь ТК">Секретарь ТК</option>
+                        <option value="Член ТК">Член ТК</option>
+                      </Select>
+                    </Field>
+                    <Field label="Роль 3">
+                      <Select value={opsRole3} onChange={(e) => setOpsRole3(e.target.value)}>
+                        <option value="">Выбрать роль</option>
+                        <option value="Операционный департамент">Операционный департамент</option>
+                        <option value="Управление кассового обслуживания">Управление кассового обслуживания</option>
+                      </Select>
+                    </Field>
+                  </div>
                   <div className="mt-3 flex flex-wrap items-center gap-3">
                     <button
                       type="button"
@@ -1992,6 +2371,25 @@ function TariffRequestPage({
             )}
             {flowStage === "committee" && (
               <section className="min-w-0 rounded-3xl border border-[var(--line)] bg-white p-6 shadow-[0_8px_24px_rgba(15,23,42,0.04)] lg:col-start-1 lg:row-start-5">
+                <SectionTitle>Переписка по дополнительному запросу</SectionTitle>
+                <div className="mt-3 space-y-3">
+                  <div className="rounded-2xl border border-[oklch(0.84_0.07_160)] bg-[oklch(0.97_0.02_160)] px-4 py-3 text-sm text-foreground">
+                    <div className="font-semibold">Запрос отправлен членом ТК</div>
+                    <div className="mt-1 whitespace-pre-wrap text-muted-foreground">
+                      {lastCommitteeRequestText.trim() || "Текст запроса отсутствует."}
+                    </div>
+                  </div>
+                  <div className="rounded-2xl border border-[var(--line)] bg-surface-soft px-4 py-3 text-sm text-foreground">
+                    <div className="font-semibold">Ответ по запросу</div>
+                    <div className="mt-1 whitespace-pre-wrap">
+                      {extraInfoResponseText.trim() || "Ответ по дополнительному запросу пока не заполнен."}
+                    </div>
+                  </div>
+                </div>
+              </section>
+            )}
+            {flowStage === "committee" && (
+              <section className="min-w-0 rounded-3xl border border-[var(--line)] bg-white p-6 shadow-[0_8px_24px_rgba(15,23,42,0.04)] lg:col-start-1 lg:row-start-6">
                 <div>
                   <h3 className="text-base font-semibold text-foreground">История голосования</h3>
                   <div className="mt-3 overflow-hidden rounded-2xl border border-[var(--line)]">
@@ -2019,6 +2417,24 @@ function TariffRequestPage({
                         </tr>
                       </thead>
                       <tbody>
+                        {lastCommitteeRequestText.trim() && (
+                          <tr className="bg-[oklch(0.97_0.02_160)]">
+                            <td className="border-b border-[var(--line)] px-3 py-2">Член ТК</td>
+                            <td className="border-b border-[var(--line)] px-3 py-2">Запрос доп. информации</td>
+                            <td className="border-b border-[var(--line)] px-3 py-2">
+                              {extraInfoResponseText.trim() ? "Ответ получен" : "Ожидается ответ"}
+                            </td>
+                            <td className="border-b border-[var(--line)] px-3 py-2">
+                              {lastCommitteeRequestText}
+                            </td>
+                            <td className="border-b border-[var(--line)] px-3 py-2">
+                              {extraInfoResponseText.trim() ? "Исполнено" : "На рассмотрении"}
+                            </td>
+                            <td className="border-b border-[var(--line)] px-3 py-2">
+                              {new Date().toLocaleString("ru-RU", { dateStyle: "short", timeStyle: "short" })}
+                            </td>
+                          </tr>
+                        )}
                         <tr className="bg-white">
                           <td className="border-b border-[var(--line)] px-3 py-2">Иванов И.И.</td>
                           <td className="border-b border-[var(--line)] px-3 py-2">За</td>
@@ -2046,24 +2462,6 @@ function TariffRequestPage({
                           <td className="px-3 py-2">Поддержано.</td>
                           <td className="px-3 py-2">На рассмотрении</td>
                           <td className="px-3 py-2">28.04.2026 14:38</td>
-                        </tr>
-                        <tr className="bg-muted/60">
-                          <td className="border-t border-[var(--line)] px-3 py-2 font-semibold text-foreground">
-                            Итого
-                          </td>
-                          <td className="border-t border-[var(--line)] px-3 py-2 font-semibold text-foreground">
-                            Сумма голосов: 4
-                          </td>
-                          <td className="border-t border-[var(--line)] px-3 py-2 font-semibold text-foreground">
-                            Сумма доп согласов: 0
-                          </td>
-                          <td className="border-t border-[var(--line)] px-3 py-2 font-semibold text-foreground">
-                            Сумма отказано: 0
-                          </td>
-                          <td className="border-t border-[var(--line)] px-3 py-2 font-semibold text-foreground">
-                            Статус: Завершен
-                          </td>
-                          <td className="border-t border-[var(--line)] px-3 py-2" />
                         </tr>
                       </tbody>
                     </table>
@@ -2134,11 +2532,9 @@ function TariffRequestPage({
       {showExtraInfoModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 px-4">
           <div className="w-full max-w-[560px] rounded-3xl border border-[var(--line)] bg-white p-6 shadow-[0_20px_48px_rgba(15,23,42,0.28)]">
-            <h3 className="text-lg font-semibold leading-tight text-foreground">
-              Запрос доп. информации
-            </h3>
+            <h3 className="text-lg font-semibold leading-tight text-foreground">Запрос доп. информации</h3>
             <p className="mt-2 text-sm leading-relaxed text-muted-foreground">
-              Укажите текст запроса, который нужно передать инициатору.
+              Укажите текст запроса. После отправки откроется отдельный экран обработки запроса.
             </p>
             <div className="mt-4">
               <Textarea
@@ -2168,12 +2564,7 @@ function TariffRequestPage({
                     return;
                   }
                   setShowExtraInfoModal(false);
-                  setExtraInfoReason("");
-                  setIsInitiatorSubmitted(false);
-                  setFlowStage("initiator");
-                  toast.success("Запрос доп. информации отправлен", {
-                    description: `Текст: ${reason}`,
-                  });
+                  setFlowStage("extraInfoRequest");
                   scrollToTop();
                 }}
                 className="rounded-xl border-none bg-brand-green px-4 py-2 text-sm font-bold text-white transition-opacity hover:opacity-90"
