@@ -907,6 +907,11 @@ function TariffRequestPage({
   const [validityMonths, setValidityMonths] = useState<3 | 6 | 12>(12);
   const [discountInput, setDiscountInput] = useState("");
   const [rowDiscountInputs, setRowDiscountInputs] = useState<Record<string, string>>({});
+  const [collapsedTariffSections, setCollapsedTariffSections] = useState<Record<string, boolean>>(() =>
+    Object.fromEntries(
+      STANDARD_TARIFF_ROWS.filter((row) => row.isSection).map((row, idx) => [row.rowKey, idx !== 0]),
+    ),
+  );
   const [selected, setSelected] = useState<Record<string, boolean>>(() =>
     Object.fromEntries(TARIFF_SELECTABLE_ROW_KEYS.map((k) => [k, false])),
   );
@@ -1001,6 +1006,24 @@ function TariffRequestPage({
         : b2.rowsOut,
     [isApproverStage, b2.rowsOut],
   );
+  const rowsForDisplay = useMemo(() => {
+    if (isApproverStage) return rowsForCurrentStage;
+    const out: typeof rowsForCurrentStage = [];
+    let currentSectionKey: string | null = null;
+    let sectionItemIndex = 0;
+    for (const r of rowsForCurrentStage) {
+      if (r.row.isSection) {
+        currentSectionKey = r.row.rowKey;
+        sectionItemIndex = 0;
+        out.push(r);
+        continue;
+      }
+      sectionItemIndex += 1;
+      if (currentSectionKey && collapsedTariffSections[currentSectionKey] && sectionItemIndex > 0) continue;
+      out.push(r);
+    }
+    return out;
+  }, [isApproverStage, rowsForCurrentStage, collapsedTariffSections]);
   const hideMainContent = flowStage === "initiator" && isInitiatorSubmitted;
 
   const profitTone: "pos" | "neg" | undefined =
@@ -1351,6 +1374,26 @@ function TariffRequestPage({
               ) : null}
 
               <div className="mt-[18px] min-w-0">
+                {!isApproverStage && (
+                  <div className="mb-2 flex justify-end">
+                    <button
+                      type="button"
+                      onClick={() =>
+                        setCollapsedTariffSections((prev) => {
+                          const hasExpanded = Object.values(prev).some((v) => !v);
+                          return Object.fromEntries(
+                            Object.keys(prev).map((key) => [key, hasExpanded]),
+                          );
+                        })
+                      }
+                      className="rounded-lg border border-[var(--line)] bg-white px-3 py-1.5 text-xs font-semibold text-foreground transition-colors hover:bg-surface-soft"
+                    >
+                      {Object.values(collapsedTariffSections).some((v) => !v)
+                        ? "Свернуть все"
+                        : "Развернуть все"}
+                    </button>
+                  </div>
+                )}
                 <table className="w-full table-fixed border-separate border-spacing-0 overflow-hidden rounded-2xl border border-[var(--line)] text-sm leading-normal [&_thead_th]:border-r [&_thead_th]:border-white/15 [&_thead_th:last-child]:border-r-0">
                   <colgroup>
                     <col style={{ width: "5%" }} />
@@ -1440,7 +1483,7 @@ function TariffRequestPage({
                     </tr>
                   </thead>
                   <tbody>
-                    {rowsForCurrentStage.map((r) =>
+                    {rowsForDisplay.map((r) =>
                       r.row.isSection ? (
                         <tr key={r.row.rowKey} className="font-bold">
                           <td className="border-t border-r border-[var(--line)] bg-[var(--section-row)] px-2.5 py-2.5" />
@@ -1449,7 +1492,33 @@ function TariffRequestPage({
                             colSpan={10}
                             className="border-t border-[var(--line)] bg-[var(--section-row)] px-2.5 py-2.5 text-sm font-bold leading-snug break-words last:border-r-0"
                           >
-                            {r.row.name}
+                            <button
+                              type="button"
+                              onClick={() =>
+                                setCollapsedTariffSections((prev) => ({
+                                  ...prev,
+                                  [r.row.rowKey]: !prev[r.row.rowKey],
+                                }))
+                              }
+                              className="flex w-full items-center gap-2 text-left"
+                            >
+                              <span
+                                className="inline-flex h-6 w-6 items-center justify-center rounded-full border border-[var(--line)] bg-white text-sm leading-none text-muted-foreground"
+                                aria-label={
+                                  collapsedTariffSections[r.row.rowKey]
+                                    ? "Развернуть текущую секцию"
+                                    : "Свернуть текущую секцию"
+                                }
+                                title={
+                                  collapsedTariffSections[r.row.rowKey]
+                                    ? "Развернуть текущую секцию"
+                                    : "Свернуть текущую секцию"
+                                }
+                              >
+                                {collapsedTariffSections[r.row.rowKey] ? "+" : "−"}
+                              </span>
+                              <span>{r.row.name}</span>
+                            </button>
                           </td>
                         </tr>
                       ) : (
