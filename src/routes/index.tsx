@@ -114,9 +114,11 @@ type ApprovalFlowStage =
   | "manager"
   | "secretary"
   | "committee"
+  | "committeeInPerson"
   | "extraInfoRequest"
   | "clientApproval"
-  | "opsSetup";
+  | "opsSetup"
+  | "applicationTimeline";
 type ApproveAction = "initiator" | "manager" | "secretary" | "committee" | "clientApproval";
 
 const APPROVAL_FLOW_STAGES: { id: ApprovalFlowStage; label: string }[] = [
@@ -126,6 +128,8 @@ const APPROVAL_FLOW_STAGES: { id: ApprovalFlowStage; label: string }[] = [
   { id: "committee", label: "Член ТК" },
   { id: "clientApproval", label: "Согласование с клиентом" },
   { id: "opsSetup", label: "Установка тарифов" },
+  { id: "applicationTimeline", label: "История заявки" },
+  { id: "committeeInPerson", label: "Очное рассмотрение" },
 ];
 
 function AppFlow() {
@@ -211,7 +215,7 @@ function LoginScreen({ onLogin }: { onLogin: () => void }) {
                 setLogin(e.target.value);
                 setError("");
               }}
-              className="w-full rounded-xl border border-[var(--line)] bg-white px-3.5 py-3 text-sm outline-none focus:border-brand-green"
+              className="w-full rounded-xl border border-[var(--line)] bg-white px-3.5 py-3 text-lg outline-none focus:border-brand-green"
               placeholder="00000000"
             />
           </div>
@@ -224,7 +228,7 @@ function LoginScreen({ onLogin }: { onLogin: () => void }) {
                 setPassword(e.target.value);
                 setError("");
               }}
-              className="w-full rounded-xl border border-[var(--line)] bg-white px-3.5 py-3 text-sm outline-none focus:border-brand-green"
+              className="w-full rounded-xl border border-[var(--line)] bg-white px-3.5 py-3 text-lg outline-none focus:border-brand-green"
               placeholder="••••••••"
             />
           </div>
@@ -255,8 +259,37 @@ function IinScreen({
   onSubmit: (iin: string) => void;
   onLogout: () => void;
 }) {
+  const myMockRequests = [
+    {
+      id: "100347604082",
+      client: "ТОО Яблочко",
+      iinBin: "123456789012",
+      stage: "Член ТК",
+      createdAt: "10.03.2026",
+      amount: "2 500 000 ₸",
+    },
+    {
+      id: "100347604091",
+      client: "ИП Саматова А.Б.",
+      iinBin: "987654321098",
+      stage: "Согласование с клиентом",
+      createdAt: "14.03.2026",
+      amount: "780 000 ₸",
+    },
+    {
+      id: "100347604109",
+      client: "ТОО TechImport",
+      iinBin: "554433221100",
+      stage: "Установка тарифов",
+      createdAt: "18.03.2026",
+      amount: "1 200 000 ₸",
+    },
+  ] as const;
   const [iin, setIin] = useState("");
   const [error, setError] = useState("");
+  const [selectedRequestId, setSelectedRequestId] = useState<string | null>(null);
+  const [activeIinPage, setActiveIinPage] = useState<"search" | "requests" | "requestDetails">("search");
+  const selectedRequest = myMockRequests.find((item) => item.id === selectedRequestId) ?? null;
 
   const submit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -270,73 +303,255 @@ function IinScreen({
   };
 
   return (
-    <div className="flex min-h-screen items-center justify-center bg-background px-4">
-      <div className="w-full max-w-[520px] rounded-3xl border border-[var(--line)] bg-white p-8 shadow-[0_20px_48px_rgba(15,23,42,0.08)]">
-        <div className="mb-6 flex items-center justify-between gap-3">
-          <div className="flex min-w-0 items-center gap-3">
-            <BlockHeadingAccent size="screen" />
-            <div className="h-12 w-12 shrink-0 rounded-2xl bg-brand-green" />
-            <div className="min-w-0">
-              <div className="text-[20px] font-semibold leading-tight">Поиск клиента</div>
-              <div className="text-xs text-muted-foreground">Введите ИИН / БИН клиента</div>
-            </div>
+    <div className="min-h-screen bg-background">
+      <div className="flex min-h-screen">
+        <aside className="hidden w-64 shrink-0 border-r border-[var(--line)] bg-white px-4 py-5 md:block">
+          <div className="mb-8 flex items-center gap-3">
+            <div className="h-10 w-10 shrink-0 rounded-xl bg-brand-green" />
+            <div className="text-sm font-semibold text-foreground">Tariff Portal</div>
           </div>
+          <nav>
+            <button
+              type="button"
+              onClick={() => setActiveIinPage("requests")}
+              className={`flex w-full items-center gap-2 rounded-xl border px-3 py-2 text-left text-sm font-semibold transition-colors ${
+                activeIinPage === "requests"
+                  ? "border-[var(--line)] bg-surface-soft text-foreground"
+                  : "border-[var(--line)] bg-white text-muted-foreground hover:bg-surface-soft"
+              }`}
+            >
+              <span className="inline-flex h-5 w-5 items-center justify-center rounded-md border border-[var(--line)] bg-white text-[11px] leading-none">
+                📄
+              </span>
+              <span>Мои заявки</span>
+            </button>
+          </nav>
           <button
+            type="button"
             onClick={onLogout}
-            className="shrink-0 self-start rounded-xl border border-[var(--line)] bg-white px-3 py-1.5 text-xs text-muted-foreground transition-colors hover:bg-surface-soft"
+            className="mt-6 w-full rounded-xl border border-[var(--line)] bg-white px-3 py-2 text-sm font-semibold text-muted-foreground transition-colors hover:bg-surface-soft"
           >
             Выйти
           </button>
-        </div>
+        </aside>
 
-        <form onSubmit={submit} className="space-y-4">
-          <div>
-            <label className="mb-2 block text-xs text-muted-foreground">ИИН / БИН</label>
-            <input
-              value={iin}
-              onChange={(e) => setIin(e.target.value.replace(/\D/g, "").slice(0, 12))}
-              className="w-full rounded-xl border border-[var(--line)] bg-white px-3.5 py-3 text-base tracking-wider outline-none focus:border-brand-green"
-              placeholder="123456789012"
-              inputMode="numeric"
-            />
-          </div>
-
-          {error && (
-            <div className="rounded-xl border border-[var(--danger)] bg-[oklch(0.97_0.04_27)] px-3 py-2 text-xs text-[var(--danger)]">
-              {error}
-            </div>
-          )}
-
-          <button
-            type="submit"
-            className="w-full rounded-2xl border-none bg-brand-green px-5 py-3.5 text-[15px] font-bold text-white transition-opacity hover:opacity-90"
+        <main className="flex min-w-0 flex-1 items-center justify-center px-4 py-8 md:px-8">
+          <div
+            className={`w-full rounded-3xl border border-[var(--line)] bg-white p-8 shadow-[0_20px_48px_rgba(15,23,42,0.08)] ${
+              activeIinPage === "requests" ? "max-w-[860px]" : "max-w-[520px]"
+            }`}
           >
-            Найти клиента
-          </button>
+            {activeIinPage === "search" ? (
+              <>
+                <div className="mb-6 flex items-center justify-between gap-3">
+                  <div className="flex min-w-0 items-center gap-3">
+                    <BlockHeadingAccent size="screen" />
+                    <div className="h-12 w-12 shrink-0 rounded-2xl bg-brand-green" />
+                    <div className="min-w-0">
+                      <div className="text-[20px] font-semibold leading-tight">Поиск клиента</div>
+                      <div className="text-xs text-muted-foreground">Введите ИИН / БИН клиента</div>
+                    </div>
+                  </div>
+                  <button
+                    onClick={onLogout}
+                    className="shrink-0 self-start rounded-xl border border-[var(--line)] bg-white px-3 py-1.5 text-xs text-muted-foreground transition-colors hover:bg-surface-soft md:hidden"
+                  >
+                    Выйти
+                  </button>
+                </div>
 
-          <div className="rounded-2xl border border-dashed border-[var(--line)] bg-white p-3.5 text-xs leading-relaxed text-muted-foreground">
-            <div className="mb-2 font-semibold text-foreground">
-              Тестовые ИИН/БИН (есть в базе):
-            </div>
-            <button
-              type="button"
-              onClick={() => setIin("123456789012")}
-              className="mr-2 mb-1 rounded-lg border border-[var(--line)] bg-white px-2.5 py-1 font-mono text-[12px] text-foreground transition-colors hover:bg-surface-soft"
-            >
-              123456789012
-            </button>
-            <button
-              type="button"
-              onClick={() => setIin("987654321098")}
-              className="mr-2 mb-1 rounded-lg border border-[var(--line)] bg-white px-2.5 py-1 font-mono text-[12px] text-foreground transition-colors hover:bg-surface-soft"
-            >
-              987654321098
-            </button>
-            <div className="mt-2">
-              Любой другой 12-значный ИИН откроет пустую форму для ручного ввода.
-            </div>
+                <form onSubmit={submit} className="space-y-4">
+                  <div>
+                    <label className="mb-2 block text-xs text-muted-foreground">ИИН / БИН</label>
+                    <input
+                      value={iin}
+                      onChange={(e) => setIin(e.target.value.replace(/\D/g, "").slice(0, 12))}
+                      className="w-full rounded-xl border border-[var(--line)] bg-white px-3.5 py-3 text-base tracking-wider outline-none focus:border-brand-green"
+                      placeholder="123456789012"
+                      inputMode="numeric"
+                    />
+                  </div>
+
+                  {error && (
+                    <div className="rounded-xl border border-[var(--danger)] bg-[oklch(0.97_0.04_27)] px-3 py-2 text-xs text-[var(--danger)]">
+                      {error}
+                    </div>
+                  )}
+
+                  <button
+                    type="submit"
+                    className="w-full rounded-2xl border-none bg-brand-green px-5 py-3.5 text-[15px] font-bold text-white transition-opacity hover:opacity-90"
+                  >
+                    Найти клиента
+                  </button>
+
+                  <div className="rounded-2xl border border-dashed border-[var(--line)] bg-white p-3.5 text-xs leading-relaxed text-muted-foreground">
+                    <div className="mb-2 font-semibold text-foreground">
+                      Тестовые ИИН/БИН (есть в базе):
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => setIin("123456789012")}
+                      className="mr-2 mb-1 rounded-lg border border-[var(--line)] bg-white px-2.5 py-1 font-mono text-[12px] text-foreground transition-colors hover:bg-surface-soft"
+                    >
+                      123456789012
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setIin("987654321098")}
+                      className="mr-2 mb-1 rounded-lg border border-[var(--line)] bg-white px-2.5 py-1 font-mono text-[12px] text-foreground transition-colors hover:bg-surface-soft"
+                    >
+                      987654321098
+                    </button>
+                    <div className="mt-2">
+                      Любой другой 12-значный ИИН откроет пустую форму для ручного ввода.
+                    </div>
+                  </div>
+                </form>
+              </>
+            ) : activeIinPage === "requests" ? (
+              <>
+                <div className="mb-6 flex items-center justify-between gap-3">
+                  <div className="flex items-center gap-3">
+                    <BlockHeadingAccent size="screen" />
+                    <div className="min-w-0">
+                      <div className="text-[20px] font-semibold leading-tight">Мои заявки</div>
+                      <div className="text-xs text-muted-foreground">Выберите заявку для просмотра деталей</div>
+                    </div>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setActiveIinPage("search")}
+                    className="rounded-xl border border-[var(--line)] bg-white px-3 py-1.5 text-xs font-semibold text-foreground transition-colors hover:bg-surface-soft"
+                  >
+                    К поиску
+                  </button>
+                </div>
+                <div className="space-y-2.5">
+                  {myMockRequests.map((item) => (
+                    <button
+                      key={item.id}
+                      type="button"
+                      onClick={() => {
+                        setSelectedRequestId(item.id);
+                        setActiveIinPage("requestDetails");
+                      }}
+                      className="w-full rounded-2xl border border-[var(--line)] bg-white px-4 py-3 text-left transition-colors hover:bg-surface-soft"
+                    >
+                      <div className="flex flex-wrap items-center justify-between gap-2">
+                        <div className="text-sm font-semibold text-foreground">№ {item.id}</div>
+                        <div className="text-xs text-muted-foreground">{item.createdAt}</div>
+                      </div>
+                      <div className="mt-1 text-sm text-foreground">{item.client}</div>
+                      <div className="mt-1 text-xs text-muted-foreground">
+                        ИИН/БИН: {item.iinBin} · Этап: {item.stage}
+                      </div>
+                    </button>
+                  ))}
+                </div>
+              </>
+            ) : (
+              <>
+                <div className="mb-6 flex items-center justify-between gap-3">
+                  <div className="flex items-center gap-3">
+                    <BlockHeadingAccent size="screen" />
+                    <div className="min-w-0">
+                      <div className="text-[20px] font-semibold leading-tight">Детальная страница заявки</div>
+                      <div className="text-xs text-muted-foreground">№ {selectedRequest?.id ?? "—"}</div>
+                    </div>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setActiveIinPage("requests")}
+                    className="rounded-xl border border-[var(--line)] bg-white px-3 py-1.5 text-xs font-semibold text-foreground transition-colors hover:bg-surface-soft"
+                  >
+                    К списку
+                  </button>
+                </div>
+                {selectedRequest && (
+                  <div className="space-y-4">
+                    <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
+                      <div className="rounded-xl border border-[var(--line)] bg-muted px-3 py-2.5">
+                        <div className="text-xs text-muted-foreground">Клиент</div>
+                        <div className="text-sm font-semibold text-foreground">{selectedRequest.client}</div>
+                      </div>
+                      <div className="rounded-xl border border-[var(--line)] bg-muted px-3 py-2.5">
+                        <div className="text-xs text-muted-foreground">ИИН / БИН</div>
+                        <div className="font-mono text-sm text-foreground">{selectedRequest.iinBin}</div>
+                      </div>
+                      <div className="rounded-xl border border-[var(--line)] bg-muted px-3 py-2.5">
+                        <div className="text-xs text-muted-foreground">Текущий этап</div>
+                        <div className="text-sm font-semibold text-foreground">{selectedRequest.stage}</div>
+                      </div>
+                      <div className="rounded-xl border border-[var(--line)] bg-muted px-3 py-2.5">
+                        <div className="text-xs text-muted-foreground">Сумма запроса</div>
+                        <div className="text-sm font-semibold text-foreground">{selectedRequest.amount}</div>
+                      </div>
+                      <div className="rounded-xl border border-[var(--line)] bg-muted px-3 py-2.5 md:col-span-2">
+                        <div className="text-xs text-muted-foreground">Дата создания</div>
+                        <div className="text-sm font-semibold text-foreground">{selectedRequest.createdAt}</div>
+                      </div>
+                    </div>
+
+                    <div className="rounded-2xl border border-[var(--line)] bg-white p-4">
+                      <div className="mb-3 text-sm font-semibold text-foreground">Отчет заявки</div>
+                      <div className="overflow-hidden rounded-xl border border-[var(--line)]">
+                        <table className="w-full border-collapse text-sm">
+                          <thead className="bg-muted text-foreground">
+                            <tr>
+                              <th className="border-b border-[var(--line)] px-3 py-2 text-left font-semibold">
+                                Операция
+                              </th>
+                              <th className="border-b border-[var(--line)] px-3 py-2 text-left font-semibold">
+                                Базовый тариф
+                              </th>
+                              <th className="border-b border-[var(--line)] px-3 py-2 text-left font-semibold">
+                                Запрошенный тариф
+                              </th>
+                              <th className="border-b border-[var(--line)] px-3 py-2 text-left font-semibold">
+                                Статус
+                              </th>
+                              <th className="border-b border-[var(--line)] px-3 py-2 text-left font-semibold">
+                                Комментарий
+                              </th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            <tr className="bg-white">
+                              <td className="border-b border-[var(--line)] px-3 py-2">РКО абонплата</td>
+                              <td className="border-b border-[var(--line)] px-3 py-2">350 000 ₸</td>
+                              <td className="border-b border-[var(--line)] px-3 py-2">250 000 ₸</td>
+                              <td className="border-b border-[var(--line)] px-3 py-2">Согласовано</td>
+                              <td className="border-b border-[var(--line)] px-3 py-2">
+                                Утверждено по решению ТК
+                              </td>
+                            </tr>
+                            <tr className="bg-white">
+                              <td className="border-b border-[var(--line)] px-3 py-2">Переводы KZT</td>
+                              <td className="border-b border-[var(--line)] px-3 py-2">0.20%</td>
+                              <td className="border-b border-[var(--line)] px-3 py-2">0.15%</td>
+                              <td className="border-b border-[var(--line)] px-3 py-2">На установке</td>
+                              <td className="border-b border-[var(--line)] px-3 py-2">
+                                Передано в Операционный департамент
+                              </td>
+                            </tr>
+                            <tr className="bg-white">
+                              <td className="px-3 py-2">Обслуживание POS</td>
+                              <td className="px-3 py-2">1.8%</td>
+                              <td className="px-3 py-2">1.6%</td>
+                              <td className="px-3 py-2">Согласовано</td>
+                              <td className="px-3 py-2">Срок действия 12 месяцев</td>
+                            </tr>
+                          </tbody>
+                        </table>
+                      </div>
+                    </div>
+                  </div>
+                )}
+              </>
+            )}
           </div>
-        </form>
+        </main>
       </div>
     </div>
   );
@@ -920,6 +1135,7 @@ function TariffRequestPage({
   const [showManagerReworkModal, setShowManagerReworkModal] = useState(false);
   const [managerReworkReason, setManagerReworkReason] = useState("");
   const [showExtraInfoModal, setShowExtraInfoModal] = useState(false);
+  const [showInPersonReviewModal, setShowInPersonReviewModal] = useState(false);
   const [extraInfoReason, setExtraInfoReason] = useState("");
   const [extraInfoResponseText, setExtraInfoResponseText] = useState("");
   const [lastCommitteeRequestText, setLastCommitteeRequestText] = useState("");
@@ -998,7 +1214,8 @@ function TariffRequestPage({
       computeBlock2TariffState(tariffCategory, validityMonths, discountInput, selected, rowDiscountInputs),
     [tariffCategory, validityMonths, discountInput, selected, rowDiscountInputs],
   );
-  const isApproverStage = flowStage !== "initiator";
+  const isInitiatorLikeStage = flowStage === "initiator" || flowStage === "committeeInPerson";
+  const isApproverStage = !isInitiatorLikeStage;
   const rowsForCurrentStage = useMemo(
     () =>
       isApproverStage
@@ -1037,6 +1254,9 @@ function TariffRequestPage({
     d.setFullYear(d.getFullYear() + 1);
     return d.toLocaleDateString("ru-RU");
   })();
+  const hasCommitteeCorrespondence = Boolean(
+    lastCommitteeRequestText.trim() || extraInfoResponseText.trim(),
+  );
 
   const handleDownloadProjectPdf = () => {
     void (async () => {
@@ -1160,9 +1380,17 @@ function TariffRequestPage({
           </div>
         )}
         {!hideMainContent && (
-          <div className="mt-6 grid min-w-0 grid-cols-1 gap-6 lg:grid-cols-[minmax(0,1fr)_min(340px,32vw)] lg:items-start">
+          <div
+            className={`mt-6 grid min-w-0 grid-cols-1 gap-6 lg:items-start ${
+              flowStage === "committeeInPerson"
+                ? "lg:grid-cols-1"
+                : "lg:grid-cols-[minmax(0,1fr)_min(340px,32vw)]"
+            }`}
+          >
             {/* Block 1 */}
-            {flowStage !== "clientApproval" && flowStage !== "opsSetup" && (
+            {flowStage !== "clientApproval" &&
+              flowStage !== "opsSetup" &&
+              flowStage !== "applicationTimeline" && (
             <section className="min-w-0 rounded-3xl border border-[var(--line)] bg-white p-6 shadow-[0_8px_24px_rgba(15,23,42,0.04)] lg:col-start-1 lg:row-start-1">
               <SectionTitle>Блок 1. Информация о клиенте</SectionTitle>
               <p className="-mt-1.5 mb-4 text-[13px] text-muted-foreground">
@@ -1295,8 +1523,20 @@ function TariffRequestPage({
             </section>
             )}
 
+            {flowStage === "committeeInPerson" && (
+              <section className="min-w-0 rounded-3xl border border-[var(--line)] bg-white p-6 shadow-[0_8px_24px_rgba(15,23,42,0.04)] lg:col-start-1 lg:row-start-2">
+                <SectionTitle>Решение Тарифного комитета</SectionTitle>
+                <p className="mt-2 text-xl leading-relaxed text-foreground">
+                  Тарифным коммитетом принято решение об очном рассмотрении вопроса.
+                </p>
+              </section>
+            )}
+
             {/* Block 2 */}
-            {flowStage !== "clientApproval" && flowStage !== "opsSetup" && (
+            {flowStage !== "clientApproval" &&
+              flowStage !== "opsSetup" &&
+              flowStage !== "applicationTimeline" &&
+              flowStage !== "committeeInPerson" && (
             <section className="min-w-0 rounded-3xl border border-[var(--line)] bg-white p-6 shadow-[0_8px_24px_rgba(15,23,42,0.04)] lg:col-start-1 lg:row-start-2">
               {flowStage !== "extraInfoRequest" ? (
                 <>
@@ -2007,7 +2247,10 @@ function TariffRequestPage({
             )}
 
             {/* Прогнозные данные — справа на lg; на мобиле после блока 2 */}
-            {flowStage !== "clientApproval" && flowStage !== "opsSetup" && (
+            {flowStage !== "clientApproval" &&
+              flowStage !== "opsSetup" &&
+              flowStage !== "applicationTimeline" &&
+              flowStage !== "committeeInPerson" && (
             <aside className="min-w-0 rounded-3xl border border-[var(--line)] bg-white p-5 shadow-[0_12px_28px_rgba(15,23,42,0.07)] lg:sticky lg:top-4 lg:col-start-2 lg:row-start-1 lg:row-span-3 lg:self-start">
               <SectionTitle>Прогнозные данные</SectionTitle>
               {flowStage === "committee" && (
@@ -2127,7 +2370,11 @@ function TariffRequestPage({
                 </div>
               </section>
             )}
-            {flowStage !== "clientApproval" && flowStage !== "opsSetup" && flowStage !== "extraInfoRequest" && (
+            {flowStage !== "clientApproval" &&
+              flowStage !== "opsSetup" &&
+              flowStage !== "applicationTimeline" &&
+              flowStage !== "extraInfoRequest" &&
+              flowStage !== "committeeInPerson" && (
             <section className="min-w-0 rounded-3xl border border-[var(--line)] bg-white p-6 shadow-[0_8px_24px_rgba(15,23,42,0.04)] lg:col-start-1 lg:row-start-4">
               <div className="mt-4">
                 <SectionTitle>Блок 3. Проект решения ТК</SectionTitle>
@@ -2166,7 +2413,7 @@ function TariffRequestPage({
                     />
                   </Field>
                 </div>
-                {flowStage === "initiator" && (
+                {(flowStage === "initiator" || flowStage === "committeeInPerson") && (
                   <div className="mt-4 flex flex-wrap gap-3.5">
                   <button
                     type="button"
@@ -2175,11 +2422,8 @@ function TariffRequestPage({
                   >
                     Отправить на согласование
                   </button>
-                  <button className="cursor-pointer rounded-2xl border border-[var(--line)] bg-white px-5 py-3.5 text-[15px] font-bold text-foreground transition-colors hover:bg-surface-soft">
+                  <button className="min-w-[250px] cursor-pointer rounded-2xl border border-[var(--line)] bg-white px-5 py-3.5 text-center text-[15px] font-bold text-foreground transition-colors hover:bg-surface-soft">
                     Сохранить
-                  </button>
-                  <button className="cursor-pointer rounded-2xl border border-dashed border-[var(--line)] bg-surface-soft px-5 py-3.5 text-[15px] font-bold text-foreground transition-colors hover:bg-white">
-                    Предварительный просмотр
                   </button>
                 </div>
                 )}
@@ -2231,6 +2475,13 @@ function TariffRequestPage({
                   </button>
                   <button className="cursor-pointer rounded-2xl border border-[var(--line)] bg-white px-5 py-3.5 text-[15px] font-bold text-foreground transition-colors hover:bg-surface-soft">
                     Против
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setShowInPersonReviewModal(true)}
+                    className="cursor-pointer rounded-2xl border border-dashed border-[var(--line)] bg-surface-soft px-5 py-3.5 text-[15px] font-bold text-foreground transition-colors hover:bg-white"
+                  >
+                    Очное рассмотрение
                   </button>
                   <button
                     type="button"
@@ -2431,14 +2682,80 @@ function TariffRequestPage({
                     >
                       Скачать PDF «Проект решения ТК»
                     </button>
-                    <button className="rounded-xl border-none bg-brand-green px-4 py-2 text-sm font-bold text-white transition-opacity hover:opacity-90">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setFlowStage("applicationTimeline");
+                        toast.success("Установка тарифов завершена", {
+                          description: "Открыт экран истории заявки.",
+                        });
+                        scrollToTop();
+                      }}
+                      className="rounded-xl border-none bg-brand-green px-4 py-2 text-sm font-bold text-white transition-opacity hover:opacity-90"
+                    >
                       Выполнено
                     </button>
                   </div>
                 </div>
               </section>
             )}
-            {flowStage === "committee" && (
+            {flowStage === "applicationTimeline" && (
+              <section className="min-w-0 rounded-3xl border border-[var(--line)] bg-white p-6 shadow-[0_8px_24px_rgba(15,23,42,0.04)] lg:col-start-1 lg:col-span-2 lg:row-start-1">
+                <SectionTitle>История заявки</SectionTitle>
+                <div className="-mt-1 mb-3 inline-flex items-center rounded-xl border border-[var(--line)] bg-surface-soft px-3 py-1.5 text-sm font-semibold text-foreground">
+                  Номер заявки: 100347604082
+                </div>
+                <div className="mt-4 rounded-2xl border border-[var(--line)] bg-white p-4">
+                  <div className="relative">
+                    <span className="absolute bottom-0 left-[5px] top-1.5 w-px bg-[var(--line)]" />
+                    <ul className="space-y-3">
+                    <li className="relative pl-6">
+                      <span className="absolute left-0 top-1.5 h-3 w-3 rounded-full bg-brand-green" />
+                      <div className="text-sm font-semibold text-foreground">Создание заявки инициатором</div>
+                      <div className="text-xs text-muted-foreground">10.03.2026 09:15 · Заявка зарегистрирована в системе</div>
+                    </li>
+
+                    <li className="relative pl-6">
+                      <span className="absolute left-0 top-1.5 h-3 w-3 rounded-full bg-brand-green" />
+                      <div className="text-sm font-semibold text-foreground">Согласование руководителем</div>
+                      <div className="text-xs text-muted-foreground">10.03.2026 14:20 · Передано секретарю Комитета</div>
+                    </li>
+
+                    <li className="relative pl-6">
+                      <span className="absolute left-0 top-1.5 h-3 w-3 rounded-full bg-brand-green" />
+                      <div className="text-sm font-semibold text-foreground">Рассмотрение секретарем</div>
+                      <div className="text-xs text-muted-foreground">11.03.2026 10:05 · Направлено члену ТК</div>
+                    </li>
+
+                    <li className="relative pl-6">
+                      <span className="absolute left-0 top-1.5 h-3 w-3 rounded-full bg-brand-green" />
+                      <div className="text-sm font-semibold text-foreground">Голосование члена ТК</div>
+                      <div className="text-xs text-muted-foreground">
+                        11.03.2026 16:40 · Решение «За» зафиксировано
+                      </div>
+                    </li>
+
+                    <li className="relative pl-6">
+                      <span className="absolute left-0 top-1.5 h-3 w-3 rounded-full bg-brand-green" />
+                      <div className="text-sm font-semibold text-foreground">Согласование с клиентом</div>
+                      <div className="text-xs text-muted-foreground">
+                        12.03.2026 11:30 · Клиент подтвердил условия
+                      </div>
+                    </li>
+
+                    <li className="relative pl-6">
+                      <span className="absolute left-0 top-1.5 h-3 w-3 rounded-full bg-muted-foreground/60" />
+                      <div className="text-sm font-semibold text-muted-foreground">Установка тарифов</div>
+                      <div className="text-xs text-muted-foreground/90">
+                        12.03.2026 15:10 · Операционный этап завершен
+                      </div>
+                    </li>
+                    </ul>
+                  </div>
+                </div>
+              </section>
+            )}
+            {flowStage === "committee" && hasCommitteeCorrespondence && (
               <section className="min-w-0 rounded-3xl border border-[var(--line)] bg-white p-6 shadow-[0_8px_24px_rgba(15,23,42,0.04)] lg:col-start-1 lg:row-start-5">
                 <SectionTitle>Переписка по дополнительному запросу</SectionTitle>
                 <div className="mt-3 space-y-3">
@@ -2639,6 +2956,39 @@ function TariffRequestPage({
                 className="rounded-xl border-none bg-brand-green px-4 py-2 text-sm font-bold text-white transition-opacity hover:opacity-90"
               >
                 Отправить
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+      {showInPersonReviewModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 px-4">
+          <div className="w-full max-w-[460px] rounded-3xl border border-[var(--line)] bg-white p-6 shadow-[0_20px_48px_rgba(15,23,42,0.28)]">
+            <h3 className="text-lg font-semibold leading-tight text-foreground">Очное рассмотрение</h3>
+            <p className="mt-2 text-sm leading-relaxed text-muted-foreground">
+              Подтвердите переход на экран очного рассмотрения.
+            </p>
+            <div className="mt-5 flex flex-wrap justify-end gap-2.5">
+              <button
+                type="button"
+                onClick={() => setShowInPersonReviewModal(false)}
+                className="rounded-xl border border-[var(--line)] bg-white px-4 py-2 text-sm font-semibold text-foreground transition-colors hover:bg-surface-soft"
+              >
+                Отмена
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setShowInPersonReviewModal(false);
+                  setFlowStage("committeeInPerson");
+                  toast.success("Переход выполнен", {
+                    description: "Открыт экран очного рассмотрения.",
+                  });
+                  scrollToTop();
+                }}
+                className="rounded-xl border-none bg-brand-green px-4 py-2 text-sm font-bold text-white transition-opacity hover:opacity-90"
+              >
+                Подтвердить
               </button>
             </div>
           </div>
