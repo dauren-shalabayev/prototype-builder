@@ -104,11 +104,7 @@ const EMPTY_CLIENT: ClientData = {
 };
 
 // ========================= APP FLOW =========================
-/** Демо-учётка прототипа (без бэкенда) */
-const DEMO_OPERATOR_LOGIN = "00011111";
-const DEMO_OPERATOR_PASSWORD = "pass";
-
-type Screen = "login" | "reviewQuestion" | "iin" | "form";
+type Screen = "reviewQuestion" | "iin" | "form";
 type ApprovalFlowStage =
   | "initiator"
   | "manager"
@@ -262,19 +258,13 @@ function GlobalFlowStageBar({
 }
 
 function AppFlow() {
-  const [screen, setScreen] = useState<Screen>("login");
+  const [screen, setScreen] = useState<Screen>("reviewQuestion");
   const [client, setClient] = useState<ClientData>(EMPTY_CLIENT);
   const [readOnly, setReadOnly] = useState(false);
   const [chosenReviewQuestion, setChosenReviewQuestion] = useState("");
   const [formEntryPath, setFormEntryPath] = useState<"iin" | "question" | null>(null);
   const [flowStage, setFlowStage] = useState<ApprovalFlowStage>("initiator");
   const [iinStepApplicable, setIinStepApplicable] = useState(false);
-
-  const handleLogin = () => {
-    setFlowStage("initiator");
-    setIinStepApplicable(false);
-    setScreen("reviewQuestion");
-  };
 
   const handleReviewQuestionContinue = (question: string) => {
     setChosenReviewQuestion(question);
@@ -308,7 +298,7 @@ function AppFlow() {
   };
 
   const handleLogout = () => {
-    setScreen("login");
+    setScreen("reviewQuestion");
     setClient(EMPTY_CLIENT);
     setReadOnly(false);
     setChosenReviewQuestion("");
@@ -359,8 +349,6 @@ function AppFlow() {
     setScreen("reviewQuestion");
   };
 
-  if (screen === "login") return <LoginScreen onLogin={handleLogin} />;
-
   const flowBarScreen: "reviewQuestion" | "iin" | "form" =
     screen === "reviewQuestion" ? "reviewQuestion" : screen === "iin" ? "iin" : "form";
 
@@ -397,133 +385,95 @@ function AppFlow() {
   );
 }
 
+/** Демо-реквизиты заявки на главном экране выбора вопроса */
+const REVIEW_QUESTION_LANDING_INITIATOR_FIO = "Карамнова Альбина";
+const REVIEW_QUESTION_LANDING_REQUEST_NO = "9001561977378";
+const REVIEW_QUESTION_LANDING_LAUNCH_AT = "14.05.2026, 10:15";
+
+function ReviewLandingStat({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="rounded-2xl border border-[var(--line)]/80 bg-white/90 px-5 py-4 text-left shadow-[0_8px_30px_rgba(15,23,42,0.06)] backdrop-blur-sm transition-shadow hover:shadow-[0_12px_36px_rgba(15,23,42,0.08)]">
+      <div className="text-[11px] font-bold uppercase tracking-wide text-muted-foreground">{label}</div>
+      <div className="mt-2 break-words text-lg font-semibold leading-snug tracking-tight text-foreground">
+        {value}
+      </div>
+    </div>
+  );
+}
+
 // ========================= SCREEN: QUESTION (before initiator / BIN) =========================
 function ReviewQuestionScreen({ onContinue }: { onContinue: (question: string) => void }) {
   const [question, setQuestion] = useState("");
 
   return (
-    <div className="flex flex-1 items-center justify-center px-4 py-8">
-      <div className="w-full max-w-[560px] rounded-3xl border border-[var(--line)] bg-white p-8 shadow-[0_20px_48px_rgba(15,23,42,0.08)]">
-        <div className="mb-6 flex items-start gap-3">
-          <div className="flex min-w-0 items-center gap-3">
-            <BlockHeadingAccent size="screen" />
-            <div className="min-w-0">
-              <h2 className="text-[20px] font-semibold leading-tight text-foreground">
-                Вопрос на рассмотрение
-              </h2>
-              <p className="mt-1 text-xs leading-relaxed text-muted-foreground">
-                Если выбрано «{INITIATOR_NEW_PROTOTYPE_QUESTION}», далее нужно указать ИИН/БИН — для
+    <div className="flex min-h-0 flex-1 flex-col bg-background">
+      <div className="mx-auto flex w-full max-w-4xl flex-1 flex-col px-4 py-8 md:py-12">
+        <div className="overflow-hidden rounded-3xl border border-[var(--line)] bg-white shadow-[0_24px_56px_rgba(15,23,42,0.1)]">
+          <div className="relative overflow-hidden bg-gradient-to-br from-[oklch(0.995_0.02_145)] via-white to-[oklch(0.96_0.035_155)] px-6 pb-10 pt-10 md:px-10 md:pb-12 md:pt-12">
+            <div
+              className="pointer-events-none absolute -right-20 -top-20 h-64 w-64 rounded-full bg-brand-green/12 blur-3xl"
+              aria-hidden
+            />
+            <div
+              className="pointer-events-none absolute -bottom-16 -left-12 h-48 w-48 rounded-full bg-[oklch(0.92_0.06_200)]/25 blur-2xl"
+              aria-hidden
+            />
+            <div className="relative text-center">
+              <h1 className="text-[clamp(1.75rem,5vw,3.25rem)] font-black uppercase leading-[1.05] tracking-[0.06em] text-foreground">
+                Тарифный комитет
+              </h1>
+              <div className="mx-auto mt-6 h-1 w-24 rounded-full bg-brand-green" aria-hidden />
+              <div className="mx-auto mt-8 grid max-w-3xl grid-cols-1 gap-4 text-left sm:grid-cols-3 sm:gap-5">
+                <ReviewLandingStat label="ФИО инициатора" value={REVIEW_QUESTION_LANDING_INITIATOR_FIO} />
+                <ReviewLandingStat
+                  label="Номер сгенерированной заявки"
+                  value={REVIEW_QUESTION_LANDING_REQUEST_NO}
+                />
+                <ReviewLandingStat label="Дата запуска заявки" value={REVIEW_QUESTION_LANDING_LAUNCH_AT} />
+              </div>
+            </div>
+          </div>
+
+          <div className="border-t border-[var(--line)] bg-white px-6 py-8 md:px-10 md:py-9">
+            <div className="mb-6 flex items-start gap-3">
+              <BlockHeadingAccent size="screen" />
+              <p className="min-w-0 text-sm leading-relaxed text-muted-foreground">
+                Если выбрано «{INITIATOR_NEW_PROTOTYPE_QUESTION}», далее укажите ИИН/БИН — для
                 действующего клиента данные подтянутся на этапе инициатора. Для остальных вопросов
                 откроется классический сценарий без ввода БИН на этом шаге.
               </p>
             </div>
-          </div>
-        </div>
-        <Field
-          label="Выберите вопрос"
-          labelClassName="mb-2 text-sm font-semibold text-foreground"
-        >
-          <Select value={question} onChange={(e) => setQuestion(e.target.value)}>
-            <option value="">Выберите вопрос</option>
-            {INITIATOR_REVIEW_QUESTION_OPTIONS.map((opt) => (
-              <option key={opt.value} value={opt.value}>
-                {opt.label}
-              </option>
-            ))}
-          </Select>
-        </Field>
-        <div className="mt-6 flex flex-wrap justify-end gap-2.5">
-          <button
-            type="button"
-            disabled={!question.trim()}
-            onClick={() => onContinue(question.trim())}
-            className="rounded-xl border-none bg-brand-green px-5 py-2.5 text-sm font-bold text-white transition-opacity hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-50"
-          >
-            Продолжить
-          </button>
-        </div>
-      </div>
-    </div>
-  );
-}
-
-// ========================= SCREEN 1: LOGIN =========================
-function LoginScreen({ onLogin }: { onLogin: () => void }) {
-  const [login, setLogin] = useState("");
-  const [password, setPassword] = useState("");
-  const [error, setError] = useState("");
-
-  const submit = (e: React.FormEvent) => {
-    e.preventDefault();
-    const trimmedLogin = login.trim();
-    if (!trimmedLogin || !password) {
-      setError("Введите логин и пароль");
-      return;
-    }
-    if (trimmedLogin !== DEMO_OPERATOR_LOGIN || password !== DEMO_OPERATOR_PASSWORD) {
-      setError("Неверный табельный номер или пароль");
-      return;
-    }
-    onLogin();
-  };
-
-  return (
-    <div className="flex min-h-screen items-center justify-center bg-background px-4">
-      <div className="w-full max-w-[440px] rounded-3xl border border-[var(--line)] bg-white p-8 shadow-[0_20px_48px_rgba(15,23,42,0.08)]">
-        <div className="mb-6 flex items-center gap-3">
-          <div className="h-12 w-12 shrink-0 rounded-2xl bg-brand-green" />
-          <div className="min-w-0 -translate-x-1">
-            <div className="text-[20px] font-semibold leading-tight">Тарифный комитет</div>
-            <div className="text-xs text-muted-foreground">Авторизация оператора</div>
-          </div>
-        </div>
-
-        <form onSubmit={submit} className="space-y-4">
-          <div>
-            <label className="mb-2 block text-xs text-muted-foreground">Табельный номер</label>
-            <input
-              value={login}
-              onChange={(e) => {
-                setLogin(e.target.value);
-                setError("");
-              }}
-              className="w-full rounded-xl border border-[var(--line)] bg-white px-3.5 py-3 text-lg outline-none focus:border-brand-green"
-              placeholder="00000000"
-            />
-          </div>
-          <div>
-            <label className="mb-2 block text-xs text-muted-foreground">Пароль</label>
-            <input
-              type="password"
-              value={password}
-              onChange={(e) => {
-                setPassword(e.target.value);
-                setError("");
-              }}
-              className="w-full rounded-xl border border-[var(--line)] bg-white px-3.5 py-3 text-lg outline-none focus:border-brand-green"
-              placeholder="••••••••"
-            />
-          </div>
-
-          {error && (
-            <div className="rounded-xl border border-[var(--danger)] bg-[oklch(0.97_0.04_27)] px-3 py-2 text-xs text-[var(--danger)]">
-              {error}
+            <Field
+              label="Вопрос на рассмотрение"
+              labelClassName="mb-2 text-sm font-semibold text-foreground"
+            >
+              <Select value={question} onChange={(e) => setQuestion(e.target.value)}>
+                <option value="">Выберите вопрос</option>
+                {INITIATOR_REVIEW_QUESTION_OPTIONS.map((opt) => (
+                  <option key={opt.value} value={opt.value}>
+                    {opt.label}
+                  </option>
+                ))}
+              </Select>
+            </Field>
+            <div className="mt-8 flex flex-wrap justify-end gap-3">
+              <button
+                type="button"
+                disabled={!question.trim()}
+                onClick={() => onContinue(question.trim())}
+                className="min-w-[200px] rounded-2xl border-none bg-brand-green px-6 py-3.5 text-[15px] font-bold text-white shadow-[0_8px_24px_rgba(22,101,52,0.35)] transition-[opacity,transform] hover:opacity-95 active:scale-[0.99] disabled:cursor-not-allowed disabled:opacity-45 disabled:shadow-none"
+              >
+                Продолжить
+              </button>
             </div>
-          )}
-
-          <button
-            type="submit"
-            className="w-full rounded-2xl border-none bg-brand-green px-5 py-3.5 text-[15px] font-bold text-white transition-opacity hover:opacity-90"
-          >
-            Войти
-          </button>
-        </form>
+          </div>
+        </div>
       </div>
     </div>
   );
 }
 
-// ========================= SCREEN 2: IIN =========================
+// ========================= SCREEN: IIN =========================
 function IinScreen({
   onSubmit,
   onBackToQuestion,
