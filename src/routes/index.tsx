@@ -108,7 +108,7 @@ const EMPTY_CLIENT: ClientData = {
 const DEMO_OPERATOR_LOGIN = "00011111";
 const DEMO_OPERATOR_PASSWORD = "pass";
 
-type Screen = "login" | "iin" | "form";
+type Screen = "login" | "reviewQuestion" | "iin" | "form";
 type ApprovalFlowStage =
   | "initiator"
   | "manager"
@@ -126,18 +126,173 @@ const APPROVAL_FLOW_STAGES: { id: ApprovalFlowStage; label: string }[] = [
   { id: "manager", label: "Руководитель инициатора" },
   { id: "secretary", label: "Секретарь Комитета" },
   { id: "committee", label: "Член ТК" },
+  { id: "extraInfoRequest", label: "Запрос доп. сведений" },
   { id: "clientApproval", label: "Согласование с клиентом" },
   { id: "opsSetup", label: "Установка тарифов" },
   { id: "applicationTimeline", label: "История заявки" },
   { id: "committeeInPerson", label: "Очное рассмотрение" },
 ];
 
+/** Вопрос, для которого в прототипе включён полный маршрут ТК (текущий прототип). */
+const INITIATOR_NEW_PROTOTYPE_QUESTION =
+  "Установление индивидуального тарифа комиссионного вознаграждения";
+
+const INITIATOR_REVIEW_QUESTION_OPTIONS: { value: string; label: string }[] = [
+  { value: INITIATOR_NEW_PROTOTYPE_QUESTION, label: INITIATOR_NEW_PROTOTYPE_QUESTION },
+  { value: "Изменение условий пакетного предложения", label: "Изменение условий пакетного предложения" },
+  {
+    value: "Согласование иных индивидуальных условий (классический процесс)",
+    label: "Согласование иных индивидуальных условий (классический процесс)",
+  },
+];
+
+/** Демо ФИО для автозаполнения списка членов ТК на этапе секретаря */
+const DEMO_COMMITTEE_MEMBER_FIOS = [
+  "Нурланов А.Р.",
+  "Серикова Д.Е.",
+  "Алдабергенов К.С.",
+  "Ибраева М.Н.",
+  "Омаров Т.Б.",
+  "Жумабекова Г.Д.",
+  "Касымов Е.Л.",
+  "Бектаева А.У.",
+  "Тулегенов Н.К.",
+  "Жолдасбаев С.Т.",
+] as const;
+
+function randomCommitteeMemberFios(count: number): string[] {
+  const pool = [...DEMO_COMMITTEE_MEMBER_FIOS];
+  const out: string[] = [];
+  for (let i = 0; i < count && pool.length > 0; i++) {
+    const j = Math.floor(Math.random() * pool.length);
+    out.push(pool.splice(j, 1)[0]!);
+  }
+  while (out.length < count) {
+    out.push(`Член ТК — ${out.length + 1}`);
+  }
+  return out;
+}
+
+function GlobalFlowStageBar({
+  screen,
+  iinStepApplicable,
+  flowStage,
+  setFlowStage,
+  onGoQuestion,
+  onGoIin,
+  onFormBack,
+  onLogout,
+}: {
+  screen: "reviewQuestion" | "iin" | "form";
+  iinStepApplicable: boolean;
+  flowStage: ApprovalFlowStage;
+  setFlowStage: (s: ApprovalFlowStage) => void;
+  onGoQuestion: () => void;
+  onGoIin: () => void;
+  onFormBack: () => void;
+  onLogout: () => void;
+}) {
+  const pill = (active: boolean, disabled?: boolean) =>
+    `rounded-xl border px-3 py-1.5 text-xs shadow-sm transition-colors ${
+      disabled
+        ? "cursor-not-allowed border-[var(--line)] bg-muted text-muted-foreground opacity-55"
+        : active
+          ? "border-brand-green bg-brand-green text-white"
+          : "border-[var(--line)] bg-white text-foreground hover:bg-surface-soft"
+    }`;
+
+  const approvalLocked = screen !== "form";
+
+  return (
+    <div className="sticky top-0 z-40 border-b border-[var(--line)] bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/80">
+      <div className="mx-auto flex min-h-0 max-w-[1440px] flex-wrap items-center justify-between gap-2 px-6 py-3">
+        <div className="flex min-w-0 flex-wrap items-center gap-2">
+          <button
+            type="button"
+            onClick={onGoQuestion}
+            className={pill(screen === "reviewQuestion")}
+          >
+            Вопрос
+          </button>
+          <button
+            type="button"
+            disabled={!iinStepApplicable}
+            onClick={() => iinStepApplicable && onGoIin()}
+            className={pill(screen === "iin", !iinStepApplicable)}
+          >
+            ИИН / БИН
+          </button>
+          <span className="mx-0.5 hidden h-5 w-px shrink-0 bg-[var(--line)] sm:block" aria-hidden />
+          {APPROVAL_FLOW_STAGES.map((stage) => {
+            const active = screen === "form" && flowStage === stage.id;
+            return (
+              <button
+                key={stage.id}
+                type="button"
+                disabled={approvalLocked}
+                onClick={() => !approvalLocked && setFlowStage(stage.id)}
+                className={pill(active, approvalLocked)}
+              >
+                {stage.label}
+              </button>
+            );
+          })}
+        </div>
+        <div className="flex shrink-0 items-center gap-2">
+          {screen === "form" && (
+            <button
+              type="button"
+              onClick={onFormBack}
+              className="rounded-xl border border-[var(--line)] bg-white px-3 py-1.5 text-xs text-foreground shadow-sm transition-colors hover:bg-surface-soft"
+            >
+              ← Назад
+            </button>
+          )}
+          <button
+            type="button"
+            onClick={onLogout}
+            className="rounded-xl border border-[var(--line)] bg-white px-3 py-1.5 text-xs text-muted-foreground shadow-sm transition-colors hover:bg-surface-soft"
+          >
+            Выйти
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function AppFlow() {
   const [screen, setScreen] = useState<Screen>("login");
   const [client, setClient] = useState<ClientData>(EMPTY_CLIENT);
   const [readOnly, setReadOnly] = useState(false);
+  const [chosenReviewQuestion, setChosenReviewQuestion] = useState("");
+  const [formEntryPath, setFormEntryPath] = useState<"iin" | "question" | null>(null);
+  const [flowStage, setFlowStage] = useState<ApprovalFlowStage>("initiator");
+  const [iinStepApplicable, setIinStepApplicable] = useState(false);
 
-  const handleLogin = () => setScreen("iin");
+  const handleLogin = () => {
+    setFlowStage("initiator");
+    setIinStepApplicable(false);
+    setScreen("reviewQuestion");
+  };
+
+  const handleReviewQuestionContinue = (question: string) => {
+    setChosenReviewQuestion(question);
+    setFlowStage("initiator");
+    if (question === INITIATOR_NEW_PROTOTYPE_QUESTION) {
+      setIinStepApplicable(true);
+      setFormEntryPath("iin");
+      setClient(EMPTY_CLIENT);
+      setReadOnly(false);
+      setScreen("iin");
+    } else {
+      setIinStepApplicable(false);
+      setFormEntryPath("question");
+      setClient(EMPTY_CLIENT);
+      setReadOnly(false);
+      setScreen("form");
+    }
+  };
 
   const handleIinSubmit = (iin: string) => {
     const found = MOCK_CLIENTS[iin];
@@ -148,6 +303,7 @@ function AppFlow() {
       setClient({ ...EMPTY_CLIENT, iinBin: iin, category: "new" });
       setReadOnly(false);
     }
+    setFormEntryPath("iin");
     setScreen("form");
   };
 
@@ -155,23 +311,139 @@ function AppFlow() {
     setScreen("login");
     setClient(EMPTY_CLIENT);
     setReadOnly(false);
+    setChosenReviewQuestion("");
+    setFormEntryPath(null);
+    setFlowStage("initiator");
+    setIinStepApplicable(false);
   };
 
-  const handleBackToIin = () => {
-    setScreen("iin");
+  const handleTopGoQuestion = () => {
     setClient(EMPTY_CLIENT);
     setReadOnly(false);
+    setChosenReviewQuestion("");
+    setFormEntryPath(null);
+    setFlowStage("initiator");
+    setIinStepApplicable(false);
+    setScreen("reviewQuestion");
+  };
+
+  const handleTopGoIin = () => {
+    if (!iinStepApplicable) return;
+    if (screen === "iin") return;
+    setScreen("iin");
+  };
+
+  const handleBackFromForm = () => {
+    if (formEntryPath === "iin") {
+      setClient(EMPTY_CLIENT);
+      setReadOnly(false);
+      setChosenReviewQuestion("");
+      setFormEntryPath(null);
+      setScreen("iin");
+    } else {
+      setClient(EMPTY_CLIENT);
+      setReadOnly(false);
+      setChosenReviewQuestion("");
+      setFormEntryPath(null);
+      setIinStepApplicable(false);
+      setScreen("reviewQuestion");
+    }
+  };
+
+  const handleBackToQuestionFromIin = () => {
+    setClient(EMPTY_CLIENT);
+    setReadOnly(false);
+    setChosenReviewQuestion("");
+    setFormEntryPath(null);
+    setIinStepApplicable(false);
+    setScreen("reviewQuestion");
   };
 
   if (screen === "login") return <LoginScreen onLogin={handleLogin} />;
-  if (screen === "iin") return <IinScreen onSubmit={handleIinSubmit} onLogout={handleLogout} />;
+
+  const flowBarScreen: "reviewQuestion" | "iin" | "form" =
+    screen === "reviewQuestion" ? "reviewQuestion" : screen === "iin" ? "iin" : "form";
+
   return (
-    <TariffRequestPage
-      client={client}
-      readOnly={readOnly}
-      onBack={handleBackToIin}
-      onLogout={handleLogout}
-    />
+    <div className="flex min-h-screen flex-col bg-background">
+      <GlobalFlowStageBar
+        screen={flowBarScreen}
+        iinStepApplicable={iinStepApplicable}
+        flowStage={flowStage}
+        setFlowStage={setFlowStage}
+        onGoQuestion={handleTopGoQuestion}
+        onGoIin={handleTopGoIin}
+        onFormBack={handleBackFromForm}
+        onLogout={handleLogout}
+      />
+      <div className="flex min-h-0 flex-1 flex-col">
+        {screen === "reviewQuestion" && (
+          <ReviewQuestionScreen onContinue={handleReviewQuestionContinue} />
+        )}
+        {screen === "iin" && (
+          <IinScreen onSubmit={handleIinSubmit} onBackToQuestion={handleBackToQuestionFromIin} />
+        )}
+        {screen === "form" && (
+          <TariffRequestPage
+            client={client}
+            readOnly={readOnly}
+            initialReviewQuestion={chosenReviewQuestion}
+            flowStage={flowStage}
+            setFlowStage={setFlowStage}
+          />
+        )}
+      </div>
+    </div>
+  );
+}
+
+// ========================= SCREEN: QUESTION (before initiator / BIN) =========================
+function ReviewQuestionScreen({ onContinue }: { onContinue: (question: string) => void }) {
+  const [question, setQuestion] = useState("");
+
+  return (
+    <div className="flex flex-1 items-center justify-center px-4 py-8">
+      <div className="w-full max-w-[560px] rounded-3xl border border-[var(--line)] bg-white p-8 shadow-[0_20px_48px_rgba(15,23,42,0.08)]">
+        <div className="mb-6 flex items-start gap-3">
+          <div className="flex min-w-0 items-center gap-3">
+            <BlockHeadingAccent size="screen" />
+            <div className="min-w-0">
+              <h2 className="text-[20px] font-semibold leading-tight text-foreground">
+                Вопрос на рассмотрение
+              </h2>
+              <p className="mt-1 text-xs leading-relaxed text-muted-foreground">
+                Если выбрано «{INITIATOR_NEW_PROTOTYPE_QUESTION}», далее нужно указать ИИН/БИН — для
+                действующего клиента данные подтянутся на этапе инициатора. Для остальных вопросов
+                откроется классический сценарий без ввода БИН на этом шаге.
+              </p>
+            </div>
+          </div>
+        </div>
+        <Field
+          label="Выберите вопрос"
+          labelClassName="mb-2 text-sm font-semibold text-foreground"
+        >
+          <Select value={question} onChange={(e) => setQuestion(e.target.value)}>
+            <option value="">Выберите вопрос</option>
+            {INITIATOR_REVIEW_QUESTION_OPTIONS.map((opt) => (
+              <option key={opt.value} value={opt.value}>
+                {opt.label}
+              </option>
+            ))}
+          </Select>
+        </Field>
+        <div className="mt-6 flex flex-wrap justify-end gap-2.5">
+          <button
+            type="button"
+            disabled={!question.trim()}
+            onClick={() => onContinue(question.trim())}
+            className="rounded-xl border-none bg-brand-green px-5 py-2.5 text-sm font-bold text-white transition-opacity hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-50"
+          >
+            Продолжить
+          </button>
+        </div>
+      </div>
+    </div>
   );
 }
 
@@ -254,10 +526,10 @@ function LoginScreen({ onLogin }: { onLogin: () => void }) {
 // ========================= SCREEN 2: IIN =========================
 function IinScreen({
   onSubmit,
-  onLogout,
+  onBackToQuestion,
 }: {
   onSubmit: (iin: string) => void;
-  onLogout: () => void;
+  onBackToQuestion?: () => void;
 }) {
   const myMockRequests = [
     {
@@ -303,8 +575,8 @@ function IinScreen({
   };
 
   return (
-    <div className="min-h-screen bg-background">
-      <div className="flex min-h-screen">
+    <div className="flex min-h-0 flex-1 flex-col bg-background">
+      <div className="flex min-h-0 flex-1">
         <aside className="hidden w-64 shrink-0 border-r border-[var(--line)] bg-white px-4 py-5 md:block">
           <div className="mb-8 flex items-center gap-3">
             <div className="h-10 w-10 shrink-0 rounded-xl bg-brand-green" />
@@ -326,13 +598,15 @@ function IinScreen({
               <span>Мои заявки</span>
             </button>
           </nav>
-          <button
-            type="button"
-            onClick={onLogout}
-            className="mt-6 w-full rounded-xl border border-[var(--line)] bg-white px-3 py-2 text-sm font-semibold text-muted-foreground transition-colors hover:bg-surface-soft"
-          >
-            Выйти
-          </button>
+          {onBackToQuestion && (
+            <button
+              type="button"
+              onClick={onBackToQuestion}
+              className="mt-3 w-full rounded-xl border border-dashed border-[var(--line)] bg-white px-3 py-2 text-sm font-semibold text-foreground transition-colors hover:bg-surface-soft"
+            >
+              К выбору вопроса
+            </button>
+          )}
         </aside>
 
         <main className="flex min-w-0 flex-1 items-center justify-center px-4 py-8 md:px-8">
@@ -349,15 +623,23 @@ function IinScreen({
                     <div className="h-12 w-12 shrink-0 rounded-2xl bg-brand-green" />
                     <div className="min-w-0">
                       <div className="text-[20px] font-semibold leading-tight">Поиск клиента</div>
-                      <div className="text-xs text-muted-foreground">Введите ИИН / БИН клиента</div>
+                      <div className="text-xs text-muted-foreground">
+                        Введите ИИН / БИН. Для действующего клиента в базе данные подтянутся на этапе
+                        инициатора.
+                      </div>
                     </div>
                   </div>
-                  <button
-                    onClick={onLogout}
-                    className="shrink-0 self-start rounded-xl border border-[var(--line)] bg-white px-3 py-1.5 text-xs text-muted-foreground transition-colors hover:bg-surface-soft md:hidden"
-                  >
-                    Выйти
-                  </button>
+                  <div className="flex shrink-0 flex-col items-end gap-1.5 self-start sm:flex-row sm:items-center">
+                    {onBackToQuestion && (
+                      <button
+                        type="button"
+                        onClick={onBackToQuestion}
+                        className="rounded-xl border border-dashed border-[var(--line)] bg-white px-3 py-1.5 text-xs font-semibold text-foreground transition-colors hover:bg-surface-soft md:hidden"
+                      >
+                        К вопросу
+                      </button>
+                    )}
+                  </div>
                 </div>
 
                 <form onSubmit={submit} className="space-y-4">
@@ -624,69 +906,144 @@ function Select(props: React.SelectHTMLAttributes<HTMLSelectElement>) {
   return <select {...props} className={inputCls} />;
 }
 
+/** Первая часть строки ФИО — для сортировки и акцента на фамилию */
+function fioSurnameAndRest(fio: string): { surname: string; rest: string } {
+  const t = fio.trim().replace(/\s+/g, " ");
+  if (!t) return { surname: "", rest: "" };
+  const i = t.indexOf(" ");
+  if (i === -1) return { surname: t, rest: "" };
+  return { surname: t.slice(0, i), rest: t.slice(i) };
+}
+
 function SearchTagField({
   values,
   onChange,
   options,
   placeholder,
+  description,
+  selectedCaption,
 }: {
   values: string[];
   onChange: (next: string[]) => void;
   options: string[];
   placeholder: string;
+  description?: string;
+  selectedCaption?: string;
 }) {
   const [query, setQuery] = useState("");
+
+  const availableSorted = useMemo(
+    () =>
+      [...options]
+        .filter((o) => !values.includes(o))
+        .sort((a, b) =>
+          fioSurnameAndRest(a).surname.localeCompare(fioSurnameAndRest(b).surname, "ru", {
+            sensitivity: "base",
+          }),
+        ),
+    [options, values],
+  );
+
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase();
     if (!q) return [];
-    return options.filter((opt) => !values.includes(opt) && opt.toLowerCase().includes(q));
-  }, [options, query, values]);
+    return availableSorted.filter((opt) => opt.toLowerCase().includes(q));
+  }, [availableSorted, query]);
+
+  const queryTrim = query.trim();
+  const showSearchHints = queryTrim.length > 0;
 
   return (
-    <div className="space-y-2">
-      <Input
-        value={query}
-        onChange={(e) => setQuery(e.target.value)}
-        placeholder={placeholder}
-        autoComplete="off"
-      />
-      {filtered.length > 0 && (
-        <div className="flex flex-wrap gap-1.5">
-          {filtered.slice(0, 8).map((opt) => (
-            <button
-              key={opt}
-              type="button"
-              onClick={() => {
-                onChange([...values, opt]);
-                setQuery("");
-              }}
-              className="rounded-full border border-[var(--line)] bg-white px-2.5 py-1 text-xs text-foreground transition-colors hover:bg-surface-soft"
-            >
-              {opt}
-            </button>
-          ))}
+    <div className="space-y-3">
+      {description ? (
+        <p className="text-sm leading-relaxed text-muted-foreground">{description}</p>
+      ) : null}
+
+      <div>
+        <label className="mb-2 block text-xs font-medium text-foreground">
+          Поиск по фамилии или полному ФИО
+        </label>
+        <Input
+          value={query}
+          onChange={(e) => setQuery(e.target.value)}
+          placeholder={placeholder}
+          autoComplete="off"
+          aria-label="Поиск сотрудника по фамилии или ФИО"
+        />
+      </div>
+
+      {!showSearchHints ? (
+        <p className="text-sm text-muted-foreground">
+          Начните вводить фамилию или имя — ниже появятся подходящие сотрудники из справочника.
+        </p>
+      ) : filtered.length > 0 ? (
+        <div>
+          <div className="mb-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+            Совпадения по запросу
+          </div>
+          <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+            {filtered.map((opt) => {
+              const { surname, rest } = fioSurnameAndRest(opt);
+              return (
+                <button
+                  key={opt}
+                  type="button"
+                  onClick={() => {
+                    onChange([...values, opt]);
+                    setQuery("");
+                  }}
+                  className="rounded-xl border border-[var(--line)] bg-white px-3.5 py-2.5 text-left text-sm shadow-sm transition-colors hover:border-brand-green hover:bg-[oklch(0.99_0.02_145)]"
+                >
+                  <span className="font-bold text-foreground">{surname}</span>
+                  {rest ? <span className="text-muted-foreground">{rest}</span> : null}
+                </button>
+              );
+            })}
+          </div>
         </div>
+      ) : (
+        <p className="rounded-xl border border-dashed border-[var(--line)] bg-surface-soft px-3 py-2.5 text-sm text-muted-foreground">
+          По запросу «{queryTrim}» никого не найдено. Проверьте написание или введите другую фамилию.
+        </p>
       )}
-      {values.length > 0 && (
-        <div className="flex flex-wrap gap-1.5">
-          {values.map((v) => (
-            <span
-              key={v}
-              className="inline-flex items-center gap-1 rounded-full bg-[oklch(0.95_0.03_145)] px-3 py-1 text-xs font-medium text-foreground"
-            >
-              {v}
-              <button
-                type="button"
-                onClick={() => onChange(values.filter((x) => x !== v))}
-                className="text-muted-foreground hover:text-foreground"
-                aria-label={`Убрать ${v}`}
-              >
-                ×
-              </button>
-            </span>
-          ))}
+
+      {availableSorted.length === 0 && values.length > 0 ? (
+        <p className="text-sm text-muted-foreground">Все сотрудники из справочника уже добавлены.</p>
+      ) : null}
+
+      {values.length > 0 ? (
+        <div>
+          {selectedCaption ? (
+            <div className="mb-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+              {selectedCaption}
+            </div>
+          ) : null}
+          <div className="flex flex-wrap gap-2">
+            {values.map((v) => {
+              const { surname, rest } = fioSurnameAndRest(v);
+              return (
+                <span
+                  key={v}
+                  className="inline-flex items-center gap-2 rounded-xl border border-[oklch(0.85_0.06_145)] bg-[oklch(0.97_0.02_145)] px-3 py-1.5 text-sm text-foreground"
+                >
+                  <span>
+                    <span className="font-bold">{surname}</span>
+                    {rest ? <span className="text-muted-foreground">{rest}</span> : null}
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() => onChange(values.filter((x) => x !== v))}
+                    className="rounded-md px-1 text-muted-foreground hover:bg-white/80 hover:text-foreground"
+                    aria-label={`Убрать ${v}`}
+                  >
+                    ×
+                  </button>
+                </span>
+              );
+            })}
+          </div>
         </div>
-      )}
+      ) : null}
     </div>
   );
 }
@@ -968,6 +1325,14 @@ type Block2RowComputed = {
   forecastNum: number;
 };
 
+/** Демо-текст колонки «текущий тариф» на этапе инициатора (по базовой ячейке категории) */
+function initiatorCurrentTariffCell(r: Block2RowComputed): string {
+  if (r.row.isSection) return "";
+  const base = r.baseStr.trim();
+  if (!base || base === "—") return "—";
+  return `${base} (действующий по договору)`;
+}
+
 /** Пустое или нечисловое поле при расчёте трактуем как минимум 1% */
 function parseDiscountPercentInput(raw: string): number {
   const t = raw.trim().replace(",", ".");
@@ -1109,15 +1474,16 @@ function CalcRow({ label, value, tone }: { label: string; value: string; tone?: 
 function TariffRequestPage({
   client,
   readOnly,
-  onBack,
-  onLogout,
+  initialReviewQuestion,
+  flowStage,
+  setFlowStage,
 }: {
   client: ClientData;
   readOnly: boolean;
-  onBack: () => void;
-  onLogout: () => void;
+  initialReviewQuestion: string;
+  flowStage: ApprovalFlowStage;
+  setFlowStage: (s: ApprovalFlowStage) => void;
 }) {
-  const [flowStage, setFlowStage] = useState<ApprovalFlowStage>("initiator");
   const [tariffCategory, setTariffCategory] = useState<TariffCategory>("A");
   const [validityMonths, setValidityMonths] = useState<3 | 6 | 12>(12);
   const [discountInput, setDiscountInput] = useState("");
@@ -1140,8 +1506,10 @@ function TariffRequestPage({
   const [extraInfoResponseText, setExtraInfoResponseText] = useState("");
   const [lastCommitteeRequestText, setLastCommitteeRequestText] = useState("");
   const [clientNegotiationComment, setClientNegotiationComment] = useState("");
-  const [reviewQuestion, setReviewQuestion] = useState(
-    "Установление индивидуального тарифа комиссионного вознаграждения",
+  const [reviewQuestion] = useState(initialReviewQuestion);
+  const initiatorAppMode = useMemo<"new" | "legacy">(
+    () => (reviewQuestion.trim() === INITIATOR_NEW_PROTOTYPE_QUESTION ? "new" : "legacy"),
+    [reviewQuestion],
   );
   const [briefJustification, setBriefJustification] = useState("");
   const [tariffManualValues, setTariffManualValues] = useState<
@@ -1149,13 +1517,13 @@ function TariffRequestPage({
   >({});
   const [projectDecision, setProjectDecision] = useState("");
   const [monitoringDate, setMonitoringDate] = useState("");
-  const [opsRole1, setOpsRole1] = useState("");
-  const [opsRole2, setOpsRole2] = useState("");
-  const [opsRole3, setOpsRole3] = useState("");
   const [responsibleAssignees, setResponsibleAssignees] = useState<string[]>([]);
+  const [signatoryVisa, setSignatoryVisa] = useState("");
   const [secretaryChair, setSecretaryChair] = useState("");
   const [secretaryDeputyChair, setSecretaryDeputyChair] = useState("");
   const [secretaryCommitteeMembers, setSecretaryCommitteeMembers] = useState<string[]>(Array(6).fill(""));
+  const [secretaryCommitteePanelOpen, setSecretaryCommitteePanelOpen] = useState(false);
+  const secretaryCommitteeRandomizedRef = useRef(false);
   const attachmentInputId = useId();
   const [attachments, setAttachments] = useState<{ id: string; file: File; previewUrl?: string }[]>(
     [],
@@ -1171,6 +1539,13 @@ function TariffRequestPage({
       }
     };
   }, []);
+
+  useEffect(() => {
+    if (flowStage !== "secretary" || !secretaryCommitteePanelOpen) return;
+    if (secretaryCommitteeRandomizedRef.current) return;
+    secretaryCommitteeRandomizedRef.current = true;
+    setSecretaryCommitteeMembers(randomCommitteeMemberFios(6));
+  }, [flowStage, secretaryCommitteePanelOpen]);
 
   const selectAllRef = useRef<HTMLInputElement>(null);
   const allSelected = useMemo(
@@ -1214,8 +1589,17 @@ function TariffRequestPage({
       computeBlock2TariffState(tariffCategory, validityMonths, discountInput, selected, rowDiscountInputs),
     [tariffCategory, validityMonths, discountInput, selected, rowDiscountInputs],
   );
-  const isInitiatorLikeStage = flowStage === "initiator" || flowStage === "committeeInPerson";
+  const isInitiatorLikeStage =
+    flowStage === "initiator" ||
+    flowStage === "committeeInPerson" ||
+    flowStage === "extraInfoRequest";
+  /** Редактирование строк тарифа и скидок по строкам — как на этапе инициатора */
+  const block2TariffRowEditLikeInitiator =
+    flowStage === "initiator" || flowStage === "extraInfoRequest";
   const isApproverStage = !isInitiatorLikeStage;
+  /** Блок 2: обоснование, категория, срок, скидка — только просмотр для согласующих после инициатора */
+  const block2InitiatorMetaReadOnly =
+    flowStage === "manager" || flowStage === "secretary" || flowStage === "committee";
   const rowsForCurrentStage = useMemo(
     () =>
       isApproverStage
@@ -1242,6 +1626,15 @@ function TariffRequestPage({
     return out;
   }, [isApproverStage, rowsForCurrentStage, collapsedTariffSections]);
   const hideMainContent = flowStage === "initiator" && isInitiatorSubmitted;
+  const isLegacyInitiator =
+    (flowStage === "initiator" || flowStage === "extraInfoRequest") && initiatorAppMode === "legacy";
+  /** Колонка «Текущий тариф» — как у инициатора в новом процессе; на запросе доп. сведений тоже */
+  const showInitiatorCurrentTariffColumn =
+    flowStage === "extraInfoRequest" ||
+    (flowStage === "initiator" && initiatorAppMode === "new");
+  /** Полная форма «Запрашиваемые условия» (категория, срок, скидка, таблица) как у инициатора в новом процессе; на запросе доп. сведений всегда для корректировки */
+  const block2FullRequestedConditionsLikeInitiatorNew =
+    initiatorAppMode === "new" || flowStage === "extraInfoRequest";
 
   const profitTone: "pos" | "neg" | undefined =
     b2.profit > 0 ? "pos" : b2.profit < 0 ? "neg" : undefined;
@@ -1289,6 +1682,10 @@ function TariffRequestPage({
   const scrollToTop = () => {
     window.scrollTo({ top: 0, behavior: "smooth" });
   };
+
+  const toggleSecretaryCommitteePanel = () => {
+    setSecretaryCommitteePanelOpen((open) => !open);
+  };
   const approveActionMeta: Record<ApproveAction, { title: string; description: string }> = {
     initiator: {
       title: "Отправка на согласование",
@@ -1313,46 +1710,8 @@ function TariffRequestPage({
   };
 
   return (
-    <div className="min-h-screen bg-background">
-      <div className="mx-auto min-w-0 max-w-[1440px] px-6 pb-6 pt-3">
-        <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
-          <div className="flex flex-wrap items-center gap-2">
-            {APPROVAL_FLOW_STAGES.map((stage) => {
-              const isActive = flowStage === stage.id;
-              return (
-                <button
-                  key={stage.id}
-                  type="button"
-                  onClick={() => setFlowStage(stage.id)}
-                  className={`rounded-xl border px-3 py-1.5 text-xs shadow-sm transition-colors ${
-                    isActive
-                      ? "border-brand-green bg-brand-green text-white"
-                      : "border-[var(--line)] bg-white text-foreground hover:bg-surface-soft"
-                  }`}
-                >
-                  {stage.label}
-                </button>
-              );
-            })}
-          </div>
-          <div className="flex items-center gap-2">
-            <button
-              type="button"
-              onClick={onBack}
-              className="rounded-xl border border-[var(--line)] bg-white px-3 py-1.5 text-xs text-foreground shadow-sm transition-colors hover:bg-surface-soft"
-            >
-              ← Изменить ИИН
-            </button>
-            <button
-              type="button"
-              onClick={onLogout}
-              className="rounded-xl border border-[var(--line)] bg-white px-3 py-1.5 text-xs text-muted-foreground shadow-sm transition-colors hover:bg-surface-soft"
-            >
-              Выйти
-            </button>
-          </div>
-        </div>
-
+    <div className="flex min-h-0 flex-1 flex-col bg-background">
+      <div className="mx-auto min-w-0 max-w-[1440px] flex-1 px-6 pb-6 pt-3">
         {/* Topbar */}
         <header className="flex flex-col items-start justify-between gap-6 rounded-3xl border border-[var(--line)] bg-white px-7 py-6 shadow-[0_8px_24px_rgba(15,23,42,0.05)] lg:flex-row">
           <div className="flex items-center gap-3.5">
@@ -1373,6 +1732,7 @@ function TariffRequestPage({
           </div>
         </header>
 
+
         {!hideMainContent && !readOnly && client.iinBin && (
           <div className="mt-4 flex items-center gap-2.5 rounded-2xl border border-[oklch(0.85_0.08_85)] bg-[oklch(0.99_0.03_85)] px-4 py-3 text-sm text-foreground">
             <span className="text-lg">⚠</span>
@@ -1382,7 +1742,8 @@ function TariffRequestPage({
         {!hideMainContent && (
           <div
             className={`mt-6 grid min-w-0 grid-cols-1 gap-6 lg:items-start ${
-              flowStage === "committeeInPerson"
+              flowStage === "committeeInPerson" ||
+              (flowStage === "initiator" && initiatorAppMode === "legacy")
                 ? "lg:grid-cols-1"
                 : "lg:grid-cols-[minmax(0,1fr)_min(340px,32vw)]"
             }`}
@@ -1398,12 +1759,20 @@ function TariffRequestPage({
                 нового клиента доступны для ручного ввода.
               </p>
 
-              <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+              <div className="grid grid-cols-1 items-end gap-4 md:grid-cols-2">
                 <Field label="ИИН / БИН">
                   <Input
                     placeholder="Введите ИИН/БИН"
                     defaultValue={client.iinBin}
                     disabled={readOnly}
+                  />
+                </Field>
+                <Field label="Текущая тарифная категория">
+                  <Input
+                    readOnly
+                    disabled={readOnly}
+                    defaultValue="Тарифная категория D"
+                    aria-label="Текущая тарифная категория"
                   />
                 </Field>
               </div>
@@ -1526,9 +1895,11 @@ function TariffRequestPage({
             {flowStage === "committeeInPerson" && (
               <section className="min-w-0 rounded-3xl border border-[var(--line)] bg-white p-6 shadow-[0_8px_24px_rgba(15,23,42,0.04)] lg:col-start-1 lg:row-start-2">
                 <SectionTitle>Решение Тарифного комитета</SectionTitle>
-                <p className="mt-2 text-xl leading-relaxed text-foreground">
-                  Тарифным коммитетом принято решение об очном рассмотрении вопроса.
-                </p>
+                <div className="mt-4 rounded-2xl border border-brand-green/35 bg-brand-green/12 px-5 py-4">
+                  <p className="text-xl font-medium leading-relaxed text-brand-green-dark">
+                    Тарифным коммитетом принято решение об очном рассмотрении вопроса.
+                  </p>
+                </div>
               </section>
             )}
 
@@ -1538,81 +1909,86 @@ function TariffRequestPage({
               flowStage !== "applicationTimeline" &&
               flowStage !== "committeeInPerson" && (
             <section className="min-w-0 rounded-3xl border border-[var(--line)] bg-white p-6 shadow-[0_8px_24px_rgba(15,23,42,0.04)] lg:col-start-1 lg:row-start-2">
-              {flowStage !== "extraInfoRequest" ? (
-                <>
+              <>
                   <SectionTitle>Блок 2. Запрашиваемые условия</SectionTitle>
 
                   <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
-                    <Field
-                      label="Вопрос на рассмотрение"
-                      className="relative z-20 md:col-span-2"
-                      labelClassName="mb-3 text-[18px] leading-tight font-semibold text-foreground"
-                    >
-                      <Select value={reviewQuestion} onChange={(e) => setReviewQuestion(e.target.value)}>
-                        <option value="Установление индивидуального тарифа комиссионного вознаграждения">
-                          Установление индивидуального тарифа комиссионного вознаграждения
-                        </option>
-                      </Select>
-                    </Field>
                     <Field label="Краткое обоснование" className="md:col-span-2">
                       <Textarea
                         placeholder="Опишите цель, экономический эффект, значимость клиента и причину запрашиваемого отклонения от базовых тарифов"
                         value={briefJustification}
                         onChange={(e) => setBriefJustification(e.target.value)}
                         rows={6}
+                        disabled={block2InitiatorMetaReadOnly}
                       />
                     </Field>
-                    <Field label="Выберите категорию тарифа (одна категория)">
-                      <Select
-                        value={tariffCategory}
-                        onChange={(e) => setTariffCategory(e.target.value as TariffCategory)}
-                      >
-                        <option value="A">Тариф категории A</option>
-                        <option value="B">Тариф категории B</option>
-                        <option value="C">Тариф категории C</option>
-                        <option value="D">Тариф категории D</option>
-                        <option value="E">Тариф категории E</option>
-                        <option value="F">Тариф категории F</option>
-                      </Select>
-                    </Field>
-                    <Field label="Выберите срок действия тарифа">
-                      <Select
-                        value={String(validityMonths)}
-                        onChange={(e) => setValidityMonths(Number(e.target.value) as 3 | 6 | 12)}
-                      >
-                        <option value="3">3 месяца</option>
-                        <option value="6">6 месяцев</option>
-                        <option value="12">12 месяцев</option>
-                      </Select>
-                    </Field>
+                    {block2FullRequestedConditionsLikeInitiatorNew && (
+                      <>
+                        <Field label="Выберите категорию тарифа (одна категория)">
+                          <Select
+                            value={tariffCategory}
+                            onChange={(e) => setTariffCategory(e.target.value as TariffCategory)}
+                            disabled={block2InitiatorMetaReadOnly}
+                          >
+                            <option value="A">Тариф категории A</option>
+                            <option value="B">Тариф категории B</option>
+                            <option value="C">Тариф категории C</option>
+                            <option value="D">Тариф категории D</option>
+                            <option value="E">Тариф категории E</option>
+                            <option value="F">Тариф категории F</option>
+                          </Select>
+                        </Field>
+                        <Field label="Выберите срок действия тарифа">
+                          <Select
+                            value={String(validityMonths)}
+                            onChange={(e) => setValidityMonths(Number(e.target.value) as 3 | 6 | 12)}
+                            disabled={block2InitiatorMetaReadOnly}
+                          >
+                            <option value="3">3 месяца</option>
+                            <option value="6">6 месяцев</option>
+                            <option value="12">12 месяцев</option>
+                          </Select>
+                        </Field>
+                      </>
+                    )}
                   </div>
-                  <div className="mt-4 grid grid-cols-1 gap-4 md:grid-cols-2">
-                    <Field label="Размер скидки, % (от 1 до 100)">
-                      <Input
-                        type="text"
-                        inputMode="numeric"
-                        autoComplete="off"
-                        value={discountInput}
-                        onChange={(e) => {
-                          const v = e.target.value
-                            .replace(",", ".")
-                            .replace(/[^0-9.]/g, "")
-                            .replace(/(\..*)\./g, "$1");
-                          if (v.length <= 6) setDiscountInput(v);
-                        }}
-                        onBlur={() => {
-                          const t = discountInput.trim();
-                          if (t === "") return;
-                          const n = Number(t.replace(",", "."));
-                          if (!Number.isFinite(n) || n < 1) setDiscountInput("1");
-                          else setDiscountInput(String(parseDiscountPercentInput(t)));
-                        }}
-                      />
-                    </Field>
-                  </div>
+                  {block2FullRequestedConditionsLikeInitiatorNew && (
+                    <div className="mt-4 grid grid-cols-1 gap-4 md:grid-cols-2">
+                      <Field label="Размер скидки, % (от 1 до 100)">
+                        <Input
+                          type="text"
+                          inputMode="numeric"
+                          autoComplete="off"
+                          disabled={block2InitiatorMetaReadOnly}
+                          value={discountInput}
+                          onChange={(e) => {
+                            const v = e.target.value
+                              .replace(",", ".")
+                              .replace(/[^0-9.]/g, "")
+                              .replace(/(\..*)\./g, "$1");
+                            if (v.length <= 6) setDiscountInput(v);
+                          }}
+                          onBlur={() => {
+                            const t = discountInput.trim();
+                            if (t === "") return;
+                            const n = Number(t.replace(",", "."));
+                            if (!Number.isFinite(n) || n < 1) setDiscountInput("1");
+                            else setDiscountInput(String(parseDiscountPercentInput(t)));
+                          }}
+                        />
+                      </Field>
+                    </div>
+                  )}
                 </>
-              ) : null}
+              {isLegacyInitiator && flowStage !== "extraInfoRequest" && (
+                <p className="mt-4 rounded-xl border border-dashed border-[var(--line)] bg-surface-soft px-4 py-3 text-sm leading-relaxed text-muted-foreground">
+                  Классический процесс: таблица тарифов, расчёт скидки и блок «Прогнозные данные» в этом
+                  прототипе не используются. Дальнейшее оформление выполняется по прежним правилам.
+                </p>
+              )}
 
+              {block2FullRequestedConditionsLikeInitiatorNew && (
+              <>
               <div className="mt-[18px] min-w-0">
                 {!isApproverStage && (
                   <div className="mb-2 flex justify-end">
@@ -1638,8 +2014,9 @@ function TariffRequestPage({
                   <colgroup>
                     <col style={{ width: "5%" }} />
                     <col style={{ width: "5%" }} />
-                    <col style={{ width: "18%" }} />
-                    <col style={{ width: "9%" }} />
+                    <col style={{ width: showInitiatorCurrentTariffColumn ? "16%" : "18%" }} />
+                    <col style={{ width: showInitiatorCurrentTariffColumn ? "8%" : "9%" }} />
+                    {showInitiatorCurrentTariffColumn ? <col style={{ width: "9%" }} /> : null}
                     <col style={{ width: "8%" }} />
                     <col style={{ width: "8%" }} />
                     <col style={{ width: "7%" }} />
@@ -1647,7 +2024,7 @@ function TariffRequestPage({
                     <col style={{ width: "7%" }} />
                     <col style={{ width: "7%" }} />
                     <col style={{ width: "7%" }} />
-                    <col style={{ width: "11%" }} />
+                    <col style={{ width: showInitiatorCurrentTariffColumn ? "10%" : "11%" }} />
                   </colgroup>
                   <thead>
                     <tr>
@@ -1663,6 +2040,11 @@ function TariffRequestPage({
                       <th className="min-w-0 bg-[var(--table-head)] px-1.5 py-2 text-left align-middle text-sm font-bold leading-tight text-white whitespace-normal break-words hyphens-auto">
                         Базовый тариф
                       </th>
+                      {showInitiatorCurrentTariffColumn ? (
+                        <th className="min-w-0 bg-[var(--table-head)] px-1.5 py-2 text-left align-middle text-sm font-bold leading-tight text-white whitespace-normal break-words hyphens-auto">
+                          Текущий тариф
+                        </th>
+                      ) : null}
                       <th className="min-w-0 bg-[var(--table-head)] px-1.5 py-2 text-left align-middle text-sm font-bold leading-tight text-white whitespace-normal break-words hyphens-auto">
                         Себестоимость
                       </th>
@@ -1704,6 +2086,11 @@ function TariffRequestPage({
                       <th className="min-w-0 bg-[var(--table-sub)] px-1.5 py-2" />
                       <th className="min-w-0 bg-[var(--table-sub)] px-1.5 py-2" />
                       <th className="min-w-0 bg-[var(--table-sub)] px-1.5 py-2" />
+                      {showInitiatorCurrentTariffColumn ? (
+                        <th className="min-w-0 bg-[var(--table-sub)] px-1.5 py-2 text-left text-[11px] font-semibold leading-tight text-white/90 whitespace-normal break-words">
+                          по карточке клиента
+                        </th>
+                      ) : null}
                       <th className="min-w-0 bg-[var(--table-sub)] px-1.5 py-2" />
                       <th className="min-w-0 bg-[var(--table-sub)] px-1.5 py-2" />
                       <th className="min-w-0 bg-[var(--table-sub)] px-1.5 py-2" />
@@ -1729,7 +2116,7 @@ function TariffRequestPage({
                           <td className="border-t border-r border-[var(--line)] bg-[var(--section-row)] px-2.5 py-2.5" />
                           <td className="border-t border-r border-[var(--line)] bg-[var(--section-row)] px-2.5 py-2.5" />
                           <td
-                            colSpan={10}
+                            colSpan={showInitiatorCurrentTariffColumn ? 11 : 10}
                             className="border-t border-[var(--line)] bg-[var(--section-row)] px-2.5 py-2.5 text-sm font-bold leading-snug break-words last:border-r-0"
                           >
                             <button
@@ -1796,6 +2183,11 @@ function TariffRequestPage({
                           <td className="border-t border-r border-[var(--line)] bg-white px-2.5 py-2.5 align-top text-sm leading-snug break-words text-muted-foreground last:border-r-0">
                             {r.baseStr}
                           </td>
+                          {showInitiatorCurrentTariffColumn ? (
+                            <td className="border-t border-r border-[var(--line)] bg-[oklch(0.98_0.02_145)] px-2.5 py-2.5 align-top text-sm leading-snug break-words text-foreground last:border-r-0">
+                              {initiatorCurrentTariffCell(r)}
+                            </td>
+                          ) : null}
                           <td className="border-t border-r border-[var(--line)] bg-white px-2.5 py-2.5 align-top text-sm leading-snug break-words last:border-r-0">
                             {r.costStr}
                           </td>
@@ -1803,7 +2195,7 @@ function TariffRequestPage({
                             {r.incomeStr}
                           </td>
                           <td className="border-t border-r border-[var(--line)] bg-white px-2.5 py-2.5 align-top text-sm leading-snug break-words last:border-r-0">
-                            {flowStage === "initiator" ? (
+                            {block2TariffRowEditLikeInitiator ? (
                               <Input
                                 type="text"
                                 inputMode="numeric"
@@ -1907,7 +2299,7 @@ function TariffRequestPage({
                     {isApproverStage && rowsForCurrentStage.length === 0 && (
                       <tr>
                         <td
-                          colSpan={12}
+                          colSpan={showInitiatorCurrentTariffColumn ? 13 : 12}
                           className="border-t border-[var(--line)] bg-white px-3 py-3 text-sm text-muted-foreground"
                         >
                           Нет отмеченных пунктов тарифа для отображения на этом этапе.
@@ -1926,6 +2318,15 @@ function TariffRequestPage({
                           maximumFractionDigits: 2,
                         })}
                       </td>
+                      {showInitiatorCurrentTariffColumn ? (
+                        <td className="border-t-2 border-t-[var(--line)] border-r border-[var(--line)] bg-[oklch(0.98_0.02_145)] px-2.5 py-2.5 align-top break-words last:border-r-0">
+                          <div className="font-normal text-muted-foreground">Текущий тариф</div>
+                          <div className="mt-1 text-xs font-normal font-medium leading-snug text-foreground">
+                            Данные по действующему договору (демо: совпадение с базовой ячейкой
+                            категории + пометка).
+                          </div>
+                        </td>
+                      ) : null}
                       <td className="border-t-2 border-t-[var(--line)] border-r border-[var(--line)] bg-white px-2.5 py-2.5 break-words last:border-r-0">
                         Себестоимость
                         <div className="mt-0.5 font-normal text-muted-foreground">
@@ -1973,14 +2374,20 @@ function TariffRequestPage({
               <p className="mt-2 text-xs leading-relaxed text-muted-foreground">
                 Таблица строится по всем строкам файла «Стандартные тарифы» (импорт CSV). «Базовый
                 тариф» — ячейка выбранной категории (D–F) из файла; при необходимости для расчёта
-                скидки подставляется числовой справочник по коду операции. «Себестоимость» и
-                «Текущий доход» в прототипе демонстрационные. «Запрашиваемый тариф» и «Скидка (%)»
-                считаются там, где из текста тарифа удаётся извлечь проценты и минимумы; иначе в
-                колонках %/min показывается «—». Неотмеченные операции после отправки заявки не
+                скидки подставляется числовой справочник по коду операции. На этапах инициатора и
+                запроса доп. сведений добавлена колонка «Текущий тариф»: справочное отображение
+                действующих условий по карточке клиента (в прототипе — от базовой ячейки с пометкой).
+                «Себестоимость» и «Текущий доход» в прототипе демонстрационные. «Запрашиваемый тариф»
+                и «Скидка (%)» считаются там, где из текста тарифа удаётся извлечь проценты и минимумы;
+                иначе в колонках %/min показывается «—». Неотмеченные операции после отправки заявки не
                 отображаются следующим участникам маршрута.
               </p>
+              </>
+              )}
 
-              {flowStage !== "extraInfoRequest" && (
+              {flowStage !== "manager" &&
+                flowStage !== "secretary" &&
+                flowStage !== "committee" && (
                 <div className="relative mt-3 rounded-2xl border border-dashed border-[var(--line)] bg-white p-4">
                 <div className="flex flex-wrap items-center justify-between gap-3">
                   <strong className="text-foreground">
@@ -2084,173 +2491,69 @@ function TariffRequestPage({
                 )}
                 </div>
               )}
-            </section>
-            )}
-
-            {flowStage === "extraInfoRequest" && (
-              <section className="min-w-0 rounded-3xl border border-[var(--line)] bg-white p-6 shadow-[0_8px_24px_rgba(15,23,42,0.04)] lg:col-start-1 lg:row-start-3">
-                <SectionTitle>Дополнительный запрос по клиенту</SectionTitle>
-                <p className="mt-2 rounded-xl border border-[var(--line)] bg-surface-soft px-4 py-3 text-sm text-foreground">
-                  {extraInfoReason.trim() || "Запрос доп. информации без текста."}
-                </p>
-                <div className="mt-4">
-                  <Field label="Текст ответа">
-                    <Textarea
-                      placeholder="Укажите ответ по дополнительному запросу"
-                      value={extraInfoResponseText}
-                      onChange={(e) => setExtraInfoResponseText(e.target.value)}
-                      rows={4}
-                    />
-                  </Field>
-                </div>
-                <div className="relative mt-3 rounded-2xl border border-dashed border-[var(--line)] bg-white p-4">
-                  <div className="flex flex-wrap items-center justify-between gap-3">
-                    <strong className="text-foreground">
-                      Прикрепить документ{" "}
-                      <span className="font-normal text-muted-foreground">
-                        (В рамках дополнительного запроса по клиенту)
-                      </span>
-                    </strong>
-                    <label
-                      htmlFor={attachmentInputId}
-                      className="inline-flex cursor-pointer select-none rounded-xl border border-[var(--line)] bg-white px-4 py-2 text-sm font-semibold text-foreground shadow-sm transition-colors hover:bg-surface-soft"
-                    >
-                      Обзор…
-                    </label>
-                  </div>
-                  <input
-                    id={attachmentInputId}
-                    type="file"
-                    multiple
-                    aria-label="Выбор файлов для вложения"
-                    className="fixed left-0 top-0 -z-10 h-px w-px overflow-hidden opacity-0"
-                    onChange={(e) => {
-                      const list = e.target.files;
-                      if (!list?.length) return;
-                      setAttachments((prev) => [
-                        ...prev,
-                        ...Array.from(list).map((file) => {
-                          const id = newAttachmentId();
-                          const previewUrl = file.type.startsWith("image/")
-                            ? URL.createObjectURL(file)
-                            : undefined;
-                          return { id, file, previewUrl };
-                        }),
-                      ]);
-                      e.target.value = "";
-                    }}
-                  />
-                  <div className="mt-1 text-xs leading-relaxed text-muted-foreground">
-                    Вложите оборотно-сальдовую ведомость, выписку по счету или иные подтверждающие
-                    документы. Кнопка «Обзор…» открывает выбор файлов; ниже показывается краткий обзор
-                    вложений.
-                  </div>
-                  {attachments.length > 0 ? (
-                    <ul className="mt-3 space-y-2">
-                      {attachments.map(({ id, file, previewUrl }) => {
-                        const extPart = file.name.includes(".")
-                          ? file.name.split(".").pop()?.toUpperCase()
-                          : "";
-                        const ext = extPart || "FILE";
-                        return (
-                          <li
-                            key={id}
-                            className="flex items-start gap-3 rounded-xl border border-[var(--line)] bg-white p-3 text-sm shadow-sm"
-                          >
-                            {previewUrl ? (
-                              <img
-                                src={previewUrl}
-                                alt=""
-                                className="h-14 w-14 shrink-0 rounded-lg border border-[var(--line)] object-cover"
-                              />
-                            ) : (
-                              <div className="flex h-14 w-14 shrink-0 items-center justify-center rounded-lg border border-dashed border-[var(--line)] bg-surface-soft text-[10px] font-bold text-muted-foreground">
-                                {ext}
-                              </div>
-                            )}
-                            <div className="min-w-0 flex-1">
-                              <div className="truncate font-medium text-foreground">{file.name}</div>
-                              <div className="mt-0.5 text-xs text-muted-foreground">
-                                {formatFileSize(file.size)}
-                                {file.type ? ` · ${file.type}` : ""}
-                                {file.lastModified
-                                  ? ` · изменён ${new Date(file.lastModified).toLocaleString("ru-RU", { dateStyle: "short", timeStyle: "short" })}`
-                                  : ""}
-                              </div>
-                            </div>
-                            <button
-                              type="button"
-                              className="shrink-0 rounded-lg border border-[var(--line)] bg-surface-soft px-2.5 py-1.5 text-xs font-semibold text-foreground transition-colors hover:bg-white"
-                              onClick={() =>
-                                setAttachments((prev) => {
-                                  const hit = prev.find((a) => a.id === id);
-                                  if (hit?.previewUrl) {
-                                    URL.revokeObjectURL(hit.previewUrl);
-                                  }
-                                  return prev.filter((a) => a.id !== id);
-                                })
-                              }
-                            >
-                              Удалить
-                            </button>
-                          </li>
-                        );
-                      })}
-                    </ul>
-                  ) : (
-                    <p className="mt-3 rounded-xl border border-dashed border-[var(--line)] bg-white/60 py-6 text-center text-xs text-muted-foreground">
-                      Файлы не выбраны — нажмите «Обзор…», чтобы добавить вложения.
+              {flowStage === "extraInfoRequest" && (
+                <>
+                  <div className="mt-5 rounded-2xl border border-[oklch(0.82_0.08_85)] bg-[oklch(0.99_0.03_85)] px-4 py-3 text-sm text-foreground">
+                    <div className="text-[11px] font-bold uppercase tracking-wide text-muted-foreground">
+                      Запрос дополнительных сведений от члена Тарифного комитета
+                    </div>
+                    <p className="mt-2 whitespace-pre-wrap leading-relaxed text-foreground">
+                      {(extraInfoReason || lastCommitteeRequestText).trim() ||
+                        "Текст запроса появится здесь после того, как член ТК отправит запрос инициатору."}
                     </p>
-                  )}
-                </div>
-              </section>
-            )}
-            {flowStage === "extraInfoRequest" && (
-              <section className="min-w-0 rounded-3xl border border-[var(--line)] bg-white p-6 shadow-[0_8px_24px_rgba(15,23,42,0.04)] lg:col-start-1 lg:row-start-5">
-                <div className="flex flex-wrap justify-start gap-2.5">
-                  <button
-                    type="button"
-                    onClick={() => {
-                      toast.success("Черновик сохранен", {
-                        description: "Дополнительный запрос сохранен без отправки.",
-                      });
-                    }}
-                    className="rounded-xl border border-[var(--line)] bg-white px-4 py-2 text-sm font-semibold text-foreground transition-colors hover:bg-surface-soft"
-                  >
-                    Сохранить черновик
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      const reason = extraInfoReason.trim();
-                      if (!reason) {
-                        toast.error("Укажите текст запроса доп. информации");
-                        return;
-                      }
-                      setShowExtraInfoModal(false);
-                      setApproveAction(null);
-                      setShowManagerReworkModal(false);
-                      setLastCommitteeRequestText(reason);
-                      setExtraInfoReason("");
-                      setFlowStage("committee");
-                      toast.success("Запрос доп. информации отправлен", {
-                        description: `Текст: ${reason}`,
-                      });
-                      scrollToTop();
-                    }}
-                    className="rounded-xl border-none bg-brand-green px-4 py-2 text-sm font-bold text-white transition-opacity hover:opacity-90"
-                  >
-                    Отправить
-                  </button>
-                </div>
-              </section>
+                  </div>
+                  <div className="mt-4">
+                    <Field label="Текст ответа по запросу члена ТК">
+                      <Textarea
+                        placeholder="Укажите ответ по дополнительному запросу"
+                        value={extraInfoResponseText}
+                        onChange={(e) => setExtraInfoResponseText(e.target.value)}
+                        rows={4}
+                      />
+                    </Field>
+                  </div>
+                  <div className="mt-4 flex flex-wrap justify-start gap-2.5">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        toast.success("Черновик сохранён", {
+                          description: "Ответ по запросу сохранён без отправки.",
+                        });
+                      }}
+                      className="rounded-xl border border-[var(--line)] bg-white px-4 py-2 text-sm font-semibold text-foreground transition-colors hover:bg-surface-soft"
+                    >
+                      Сохранить черновик
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const response = extraInfoResponseText.trim();
+                        if (!response) {
+                          toast.error("Укажите текст ответа по запросу члена ТК");
+                          return;
+                        }
+                        setFlowStage("committee");
+                        toast.success("Ответ направлен члену Тарифного комитета", {
+                          description: "Заявка возвращена на рассмотрение члену ТК.",
+                        });
+                        scrollToTop();
+                      }}
+                      className="rounded-xl border-none bg-brand-green px-4 py-2 text-sm font-bold text-white transition-opacity hover:opacity-90"
+                    >
+                      Отправить ответ члену ТК
+                    </button>
+                  </div>
+                </>
+              )}
+            </section>
             )}
 
             {/* Прогнозные данные — справа на lg; на мобиле после блока 2 */}
             {flowStage !== "clientApproval" &&
               flowStage !== "opsSetup" &&
               flowStage !== "applicationTimeline" &&
-              flowStage !== "committeeInPerson" && (
+              flowStage !== "committeeInPerson" &&
+              !(flowStage === "initiator" && initiatorAppMode === "legacy") && (
             <aside className="min-w-0 rounded-3xl border border-[var(--line)] bg-white p-5 shadow-[0_12px_28px_rgba(15,23,42,0.07)] lg:sticky lg:top-4 lg:col-start-2 lg:row-start-1 lg:row-span-3 lg:self-start">
               <SectionTitle>Прогнозные данные</SectionTitle>
               {flowStage === "committee" && (
@@ -2301,83 +2604,149 @@ function TariffRequestPage({
             </aside>
             )}
 
-            {flowStage === "initiator" && (
+            {(flowStage === "initiator" || flowStage === "extraInfoRequest") &&
+              block2FullRequestedConditionsLikeInitiatorNew && (
               <section className="min-w-0 rounded-3xl border border-[var(--line)] bg-white p-6 shadow-[0_8px_24px_rgba(15,23,42,0.04)] lg:col-start-1 lg:row-start-3">
                 <SectionTitle>Назначение ответственных за исполнение решения</SectionTitle>
-                <div className="mt-3">
-                  <Field label="Ответственные">
-                    <SearchTagField
-                      values={responsibleAssignees}
-                      onChange={setResponsibleAssignees}
-                      options={[
-                        "Иванов И.И.",
-                        "Петров П.П.",
-                        "Сидорова А.К.",
-                        "Ким Д.В.",
-                        "Ахметов Н.С.",
-                        "Тлеубердиева М.Е.",
-                      ]}
-                      placeholder="Поиск по фамилии"
-                    />
-                  </Field>
+                <p className="mt-2 text-sm leading-relaxed text-muted-foreground">
+                  Укажите сотрудников, которые будут ставить задачи и контролировать исполнение после
+                  решения ТК. Добавьте их через поиск по фамилии или ФИО.
+                </p>
+                <div className="mt-4 rounded-2xl border border-[var(--line)] bg-[oklch(0.995_0.005_145)] p-4 sm:p-5">
+                  <SearchTagField
+                    values={responsibleAssignees}
+                    onChange={setResponsibleAssignees}
+                    options={[
+                      "Ахметов Н.С.",
+                      "Иванов И.И.",
+                      "Ким Д.В.",
+                      "Петров П.П.",
+                      "Сидорова А.К.",
+                      "Тлеубердиева М.Е.",
+                    ]}
+                    placeholder="Начните вводить фамилию, например: Иванов"
+                    description="Демо-справочник: можно добавить несколько человек; уже выбранные в подсказках не показываются."
+                    selectedCaption="Уже в списке ответственных"
+                  />
                 </div>
               </section>
             )}
             {flowStage === "secretary" && (
               <section className="min-w-0 rounded-3xl border border-[var(--line)] bg-white p-6 shadow-[0_8px_24px_rgba(15,23,42,0.04)] lg:col-start-1 lg:row-start-3">
-                <SectionTitle>Выбор членов комитета</SectionTitle>
-                <div className="mt-3 grid grid-cols-1 gap-4 md:grid-cols-2">
-                  <Field label="Председатель ТК">
-                    <Select value={secretaryChair} onChange={(e) => setSecretaryChair(e.target.value)}>
-                      <option value="">Выбрать</option>
-                      <option value="Саимов Е.И.">Саимов Е.И.</option>
-                      <option value="Иванов И.И.">Иванов И.И.</option>
-                      <option value="Кожамяберов Е.С.">Кожамяберов Е.С.</option>
-                    </Select>
-                  </Field>
-                  <Field label="Зам. Председателя">
-                    <Select
-                      value={secretaryDeputyChair}
-                      onChange={(e) => setSecretaryDeputyChair(e.target.value)}
-                    >
-                      <option value="">Выбрать</option>
-                      <option value="Талгатова Д.С.">Талгатова Д.С.</option>
-                      <option value="Сидорова А.К.">Сидорова А.К.</option>
-                      <option value="Турген Е.А.">Турген Е.А.</option>
-                    </Select>
-                  </Field>
-                  {secretaryCommitteeMembers.map((member, idx) => (
-                    <Field key={`member-${idx}`} label={`Член ТК - ${idx + 1}`}>
-                      <Select
-                        value={member}
-                        onChange={(e) =>
-                          setSecretaryCommitteeMembers((prev) =>
-                            prev.map((m, i) => (i === idx ? e.target.value : m)),
-                          )
-                        }
-                      >
+                <div className="flex flex-wrap items-start justify-between gap-3">
+                  <div className="min-w-0 flex-1">
+                    <SectionTitle>Выбор членов комитета</SectionTitle>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={toggleSecretaryCommitteePanel}
+                    className="shrink-0 rounded-xl border border-[var(--line)] bg-white px-3 py-1.5 text-xs font-semibold text-foreground shadow-sm transition-colors hover:bg-surface-soft"
+                  >
+                    {secretaryCommitteePanelOpen ? "Свернуть" : "Развернуть"}
+                  </button>
+                </div>
+
+                {!secretaryCommitteePanelOpen && (
+                  <div className="mt-3 rounded-2xl border border-dashed border-[var(--line)] bg-surface-soft px-4 py-3 text-sm leading-relaxed text-muted-foreground">
+                    <p>
+                      Состав комитета скрыт. Нажмите «Развернуть» — ФИО шести членов ТК подставятся
+                      автоматически (случайный набор из демо-справочника), их можно изменить вручную.
+                    </p>
+                    <div className="mt-2 text-xs text-foreground">
+                      <span className="text-muted-foreground">Председатель:</span>{" "}
+                      {secretaryChair.trim() || "—"} ·{" "}
+                      <span className="text-muted-foreground">Зам. председателя:</span>{" "}
+                      {secretaryDeputyChair.trim() || "—"}
+                    </div>
+                    {secretaryCommitteeMembers.some((m) => m.trim()) && (
+                      <div className="mt-2 text-xs">
+                        <span className="text-muted-foreground">Члены ТК:</span>{" "}
+                        {secretaryCommitteeMembers
+                          .map((m) => m.trim())
+                          .filter(Boolean)
+                          .join(", ")}
+                      </div>
+                    )}
+                  </div>
+                )}
+
+                {secretaryCommitteePanelOpen && (
+                  <div className="mt-3 grid grid-cols-1 gap-4 md:grid-cols-2">
+                    <Field label="Председатель ТК">
+                      <Select value={secretaryChair} onChange={(e) => setSecretaryChair(e.target.value)}>
                         <option value="">Выбрать</option>
-                        <option value="Дунапов Г.С.">Дунапов Г.С.</option>
-                        <option value="Кожамяберов Е.С.">Кожамяберов Е.С.</option>
-                        <option value="Турген Е.А.">Турген Е.А.</option>
-                        <option value="Мамбетова Н.Д.">Мамбетова Н.Д.</option>
-                        <option value="Тлесов С.Г.">Тлесов С.Г.</option>
+                        <option value="Саимов Е.И.">Саимов Е.И.</option>
                         <option value="Иванов И.И.">Иванов И.И.</option>
-                        <option value="Сидорова А.К.">Сидорова А.К.</option>
+                        <option value="Кожамяберов Е.С.">Кожамяберов Е.С.</option>
                       </Select>
                     </Field>
-                  ))}
-                </div>
+                    <Field label="Зам. Председателя">
+                      <Select
+                        value={secretaryDeputyChair}
+                        onChange={(e) => setSecretaryDeputyChair(e.target.value)}
+                      >
+                        <option value="">Выбрать</option>
+                        <option value="Талгатова Д.С.">Талгатова Д.С.</option>
+                        <option value="Сидорова А.К.">Сидорова А.К.</option>
+                        <option value="Турген Е.А.">Турген Е.А.</option>
+                      </Select>
+                    </Field>
+                    {secretaryCommitteeMembers.map((member, idx) => (
+                      <Field key={`member-${idx}`} label={`Член ТК — ${idx + 1} (ФИО)`}>
+                        <Input
+                          value={member}
+                          onChange={(e) =>
+                            setSecretaryCommitteeMembers((prev) =>
+                              prev.map((m, i) => (i === idx ? e.target.value : m)),
+                            )
+                          }
+                          placeholder="Фамилия И.О."
+                          autoComplete="off"
+                        />
+                      </Field>
+                    ))}
+                  </div>
+                )}
               </section>
             )}
             {flowStage !== "clientApproval" &&
               flowStage !== "opsSetup" &&
               flowStage !== "applicationTimeline" &&
-              flowStage !== "extraInfoRequest" &&
               flowStage !== "committeeInPerson" && (
             <section className="min-w-0 rounded-3xl border border-[var(--line)] bg-white p-6 shadow-[0_8px_24px_rgba(15,23,42,0.04)] lg:col-start-1 lg:row-start-4">
               <div className="mt-4">
                 <SectionTitle>Блок 3. Проект решения ТК</SectionTitle>
+                {isLegacyInitiator ? (
+                  <>
+                    <p className="mt-2 rounded-xl border border-dashed border-[var(--line)] bg-surface-soft px-4 py-3 text-sm leading-relaxed text-muted-foreground">
+                      В классическом процессе текст проекта решения и сопутствующие поля оформляются в
+                      учётной системе вне данного прототипа. Ниже доступны действия по маршруту
+                      согласования.
+                    </p>
+                    {flowStage === "initiator" && (
+                      <div className="mt-6 rounded-2xl border border-[var(--line)] bg-[oklch(0.99_0.02_150)] p-4 md:p-5">
+                        <h3 className="mb-3 text-base font-semibold text-foreground">
+                          Выбор подписанта (визирующего)
+                        </h3>
+                        <Field label="Подписант (визирующий)">
+                          <Select value={signatoryVisa} onChange={(e) => setSignatoryVisa(e.target.value)}>
+                            <option value="">Выберите подписанта</option>
+                            <option value="Саимов Е.И.">Саимов Е.И. — директор департамента</option>
+                            <option value="Кожамяберов Е.С.">Кожамяберов Е.С. — зам. директора</option>
+                            <option value="Талгатова Д.С.">Талгатова Д.С. — начальник управления</option>
+                            <option value="Турген Е.А.">Турген Е.А. — зам. начальника управления</option>
+                            <option value="Иванов И.И.">Иванов И.И. — ведущий менеджер</option>
+                          </Select>
+                        </Field>
+                        <p className="mt-2 text-xs leading-relaxed text-muted-foreground">
+                          Укажите подписанта, визирующего пакет документов перед отправкой заявки на
+                          согласование руководителю инициатора.
+                        </p>
+                      </div>
+                    )}
+                  </>
+                ) : (
+                  <>
                 <Textarea
                   placeholder="Пример решения:
 Принимая во внимание ходатайство Департамента по работе с корпоративными клиентами №2, установить клиенту Банка ТОО «Яблочко» БИН 00000000000 индивидуальные тарифы согласно тарифной категории DZERD (не включая документарные операции) в виде годовой абонентской платы в размере 2 500 000 тенге сроком на 12 месяцев.
@@ -2413,6 +2782,29 @@ function TariffRequestPage({
                     />
                   </Field>
                 </div>
+                {flowStage === "initiator" && (
+                  <div className="mt-6 rounded-2xl border border-[var(--line)] bg-[oklch(0.99_0.02_150)] p-4 md:p-5">
+                    <h3 className="mb-3 text-base font-semibold text-foreground">
+                      Выбор подписанта (визирующего)
+                    </h3>
+                    <Field label="Подписант (визирующий)">
+                      <Select value={signatoryVisa} onChange={(e) => setSignatoryVisa(e.target.value)}>
+                        <option value="">Выберите подписанта</option>
+                        <option value="Саимов Е.И.">Саимов Е.И. — директор департамента</option>
+                        <option value="Кожамяберов Е.С.">Кожамяберов Е.С. — зам. директора</option>
+                        <option value="Талгатова Д.С.">Талгатова Д.С. — начальник управления</option>
+                        <option value="Турген Е.А.">Турген Е.А. — зам. начальника управления</option>
+                        <option value="Иванов И.И.">Иванов И.И. — ведущий менеджер</option>
+                      </Select>
+                    </Field>
+                    <p className="mt-2 text-xs leading-relaxed text-muted-foreground">
+                      Укажите подписанта, визирующего пакет документов перед отправкой заявки на согласование
+                      руководителю инициатора.
+                    </p>
+                  </div>
+                )}
+                  </>
+                )}
                 {(flowStage === "initiator" || flowStage === "committeeInPerson") && (
                   <div className="mt-4 flex flex-wrap gap-3.5">
                   <button
@@ -2651,29 +3043,6 @@ function TariffRequestPage({
                   <Field label="Комментарий Операционного департамента">
                     <Textarea placeholder="Укажите дату и подтверждение установки тарифов" rows={4} />
                   </Field>
-                  <div className="mt-4 grid grid-cols-1 gap-4 md:grid-cols-3">
-                    <Field label="Роль 1">
-                      <Select value={opsRole1} onChange={(e) => setOpsRole1(e.target.value)}>
-                        <option value="">Выбрать роль</option>
-                        <option value="Инициатор">Инициатор</option>
-                        <option value="Согласующий">Согласующий</option>
-                      </Select>
-                    </Field>
-                    <Field label="Роль 2">
-                      <Select value={opsRole2} onChange={(e) => setOpsRole2(e.target.value)}>
-                        <option value="">Выбрать роль</option>
-                        <option value="Секретарь ТК">Секретарь ТК</option>
-                        <option value="Член ТК">Член ТК</option>
-                      </Select>
-                    </Field>
-                    <Field label="Роль 3">
-                      <Select value={opsRole3} onChange={(e) => setOpsRole3(e.target.value)}>
-                        <option value="">Выбрать роль</option>
-                        <option value="Операционный департамент">Операционный департамент</option>
-                        <option value="Управление кассового обслуживания">Управление кассового обслуживания</option>
-                      </Select>
-                    </Field>
-                  </div>
                   <div className="mt-3 flex flex-wrap items-center gap-3">
                     <button
                       type="button"
@@ -2950,6 +3319,7 @@ function TariffRequestPage({
                     return;
                   }
                   setShowExtraInfoModal(false);
+                  setLastCommitteeRequestText(reason);
                   setFlowStage("extraInfoRequest");
                   scrollToTop();
                 }}
