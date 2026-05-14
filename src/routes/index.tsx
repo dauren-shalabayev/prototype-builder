@@ -134,11 +134,24 @@ const INITIATOR_NEW_PROTOTYPE_QUESTION =
   "Установление индивидуального тарифа комиссионного вознаграждения";
 
 const INITIATOR_REVIEW_QUESTION_OPTIONS: { value: string; label: string }[] = [
-  { value: INITIATOR_NEW_PROTOTYPE_QUESTION, label: INITIATOR_NEW_PROTOTYPE_QUESTION },
-  { value: "Изменение условий пакетного предложения", label: "Изменение условий пакетного предложения" },
   {
-    value: "Согласование иных индивидуальных условий (классический процесс)",
-    label: "Согласование иных индивидуальных условий (классический процесс)",
+    value:
+      "Внесение изменений в действующие (в сетку) тарифы на банковское обслуживание ( ЮЛ, ФЛ и др.)",
+    label:
+      "Внесение изменений в действующие (в сетку) тарифы на банковское обслуживание ( ЮЛ, ФЛ и др.)",
+  },
+  { value: INITIATOR_NEW_PROTOTYPE_QUESTION, label: INITIATOR_NEW_PROTOTYPE_QUESTION },
+  {
+    value: "Возврат/списание/аннулирование комиссии клиентам Банка",
+    label: "Возврат/списание/аннулирование комиссии клиентам Банка",
+  },
+  {
+    value: "ЮЛ Мониторинговый отчет по установленным тарифам",
+    label: "ЮЛ Мониторинговый отчет по установленным тарифам",
+  },
+  {
+    value: "Прочие вопросы ТК, не вошедшие в основной перечень",
+    label: "Прочие вопросы ТК, не вошедшие в основной перечень",
   },
 ];
 
@@ -354,16 +367,18 @@ function AppFlow() {
 
   return (
     <div className="flex min-h-screen flex-col bg-background">
-      <GlobalFlowStageBar
-        screen={flowBarScreen}
-        iinStepApplicable={iinStepApplicable}
-        flowStage={flowStage}
-        setFlowStage={setFlowStage}
-        onGoQuestion={handleTopGoQuestion}
-        onGoIin={handleTopGoIin}
-        onFormBack={handleBackFromForm}
-        onLogout={handleLogout}
-      />
+      {screen !== "reviewQuestion" && (
+        <GlobalFlowStageBar
+          screen={flowBarScreen}
+          iinStepApplicable={iinStepApplicable}
+          flowStage={flowStage}
+          setFlowStage={setFlowStage}
+          onGoQuestion={handleTopGoQuestion}
+          onGoIin={handleTopGoIin}
+          onFormBack={handleBackFromForm}
+          onLogout={handleLogout}
+        />
+      )}
       <div className="flex min-h-0 flex-1 flex-col">
         {screen === "reviewQuestion" && (
           <ReviewQuestionScreen onContinue={handleReviewQuestionContinue} />
