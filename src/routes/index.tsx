@@ -1878,7 +1878,7 @@ function TariffRequestPage({
                   <SectionTitle>Блок 2. Запрашиваемые условия</SectionTitle>
 
                   <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
-                    <Field label="Краткое обоснование" className="md:col-span-2">
+                    <Field label="Обоснование" className="md:col-span-2">
                       <Textarea
                         placeholder="Опишите цель, экономический эффект, значимость клиента и причину запрашиваемого отклонения от базовых тарифов"
                         value={briefJustification}
