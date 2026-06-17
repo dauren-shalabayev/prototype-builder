@@ -20,6 +20,7 @@ type ClientData = {
   staffCount: string;
   payroll: string;
   insurance: string;
+  netProductIncome: string;
   rko: string;
   doc: string;
   credits: string;
@@ -42,6 +43,7 @@ const MOCK_CLIENTS: Record<string, ClientData> = {
     staffCount: "248",
     payroll: "92 400 000 ₸",
     insurance: "АО «СК Евразия»",
+    netProductIncome: "6 590 000 ₸",
     rko: "1 240 000 ₸ / 8.4 млрд ₸",
     doc: "320 000 ₸ / 12 операций",
     credits: "4 200 000 ₸ / 1.8 млрд ₸",
@@ -62,6 +64,7 @@ const MOCK_CLIENTS: Record<string, ClientData> = {
     staffCount: "42",
     payroll: "14 800 000 ₸",
     insurance: "АО «Halyk Insurance»",
+    netProductIncome: "1 524 000 ₸",
     rko: "320 000 ₸ / 1.2 млрд ₸",
     doc: "—",
     credits: "180 000 ₸ / 80 млн ₸",
@@ -84,6 +87,7 @@ const EMPTY_CLIENT: ClientData = {
   staffCount: "",
   payroll: "",
   insurance: "",
+  netProductIncome: "",
   rko: "",
   doc: "",
   credits: "",
@@ -1758,7 +1762,7 @@ function TariffRequestPage({
                 </Field>
               </div>
 
-              <div className="mt-4 grid grid-cols-1 gap-4 md:grid-cols-3">
+              <div className="mt-4 grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-4">
                 <Field label="Связанность с банком">
                   <Select defaultValue={client.relation} disabled={readOnly}>
                     <option>Не выбрано</option>
@@ -1772,13 +1776,20 @@ function TariffRequestPage({
                 <Field label="Ежемесячный фонд заработной платы">
                   <Input placeholder="0 ₸" defaultValue={client.payroll} disabled={readOnly} />
                 </Field>
-              </div>
-
-              <div className="mt-4 grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-4">
                 <Field label="Обслуживающая страховая компания">
                   <Input
                     placeholder="Выбрать из справочника"
                     defaultValue={client.insurance}
+                    disabled={readOnly}
+                  />
+                </Field>
+              </div>
+
+              <div className="mt-4 grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-4">
+                <Field label="Чистый доход по продуктам">
+                  <Input
+                    placeholder="Доход / объем"
+                    defaultValue={client.netProductIncome}
                     disabled={readOnly}
                   />
                 </Field>
