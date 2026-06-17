@@ -5,7 +5,7 @@ import { toast } from "sonner";
 import { downloadTariffCommitteePdf } from "@/lib/tariffCommitteePdf";
 import standardTariffsCsv from "../data/standard-tariffs.csv?raw";
 
-export const Route = createFileRoute("/")({
+export const Route = createFileRoute("/index2")({
   component: AppFlow,
 });
 
@@ -27,9 +27,7 @@ type ClientData = {
   acquiring: string;
   corpCards: string;
   deposits: string;
-  walletProfit: string;
   groupProfit: string;
-  crossProfit: string;
   profitability: string;
 };
 
@@ -51,10 +49,8 @@ const MOCK_CLIENTS: Record<string, ClientData> = {
     acquiring: "—",
     corpCards: "92 000 ₸ / 18 карт",
     deposits: "1 850 000 ₸ / 4.2 млрд ₸",
-    walletProfit: "1 850 000 ₸",
     groupProfit: "2 430 000 ₸",
-    crossProfit: "710 000 ₸",
-    profitability: "Положительная",
+    profitability: "38,4%",
   },
   "987654321098": {
     iinBin: "987654321098",
@@ -73,10 +69,8 @@ const MOCK_CLIENTS: Record<string, ClientData> = {
     acquiring: "240 000 ₸ / 380 млн ₸",
     corpCards: "24 000 ₸ / 4 карт",
     deposits: "120 000 ₸ / 280 млн ₸",
-    walletProfit: "884 000 ₸",
     groupProfit: "884 000 ₸",
-    crossProfit: "210 000 ₸",
-    profitability: "Положительная",
+    profitability: "22,7%",
   },
 };
 
@@ -97,9 +91,7 @@ const EMPTY_CLIENT: ClientData = {
   acquiring: "",
   corpCards: "",
   deposits: "",
-  walletProfit: "—",
   groupProfit: "—",
-  crossProfit: "—",
   profitability: "—",
 };
 
@@ -1844,14 +1836,18 @@ function TariffRequestPage({
                 </Field>
               </div>
 
-              <div className="mt-3 grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4">
-                <InfoBox k="Доходность клиента по кошельку" v={client.walletProfit} />
+              <div className="mt-3 grid grid-cols-1 gap-3 sm:grid-cols-2">
                 <InfoBox k="Доходность по группе" v={client.groupProfit} />
-                <InfoBox k="Доходы по кросс-продуктам" v={client.crossProfit} />
                 <InfoBox
                   k="Рентабельность клиента"
                   v={client.profitability}
-                  tone={client.profitability === "Положительная" ? "pos" : undefined}
+                  tone={
+                    client.profitability !== "—" && !client.profitability.startsWith("-")
+                      ? "pos"
+                      : client.profitability.startsWith("-")
+                        ? "neg"
+                        : undefined
+                  }
                 />
               </div>
             </section>
@@ -2534,10 +2530,6 @@ function TariffRequestPage({
               )}
               <div className="text-xs text-muted-foreground">
                 Сводный калькулятор по выбранным операциям и сроку действия тарифа.
-              </div>
-              <div className="mt-3 rounded-2xl border border-[var(--line)] bg-muted px-4 py-3">
-                <div className="text-xs text-muted-foreground">Доходность клиента по кошельку</div>
-                <div className="mt-1 text-lg font-semibold text-foreground">{client.walletProfit}</div>
               </div>
 
               <div className="my-4 rounded-2xl border border-[var(--total-border)] bg-[var(--total-bg)] p-4">
