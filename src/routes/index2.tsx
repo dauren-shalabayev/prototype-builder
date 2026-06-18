@@ -3,6 +3,7 @@ import { forwardRef, useEffect, useId, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
 
 import { downloadTariffCommitteePdf } from "@/lib/tariffCommitteePdf";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import standardTariffsCsv from "../data/standard-tariffs.csv?raw";
 
 export const Route = createFileRoute("/index2")({
@@ -14,6 +15,7 @@ type ClientData = {
   iinBin: string;
   category: "existing" | "new";
   fullName: string;
+  firstManager: string;
   activity: string;
   serviceStartDate: string;
   relation: string;
@@ -37,6 +39,7 @@ const MOCK_CLIENTS: Record<string, ClientData> = {
     iinBin: "123456789012",
     category: "existing",
     fullName: "ТОО «КазТрансОйл-Сервис»",
+    firstManager: "Суриков Сергей Сергеевич",
     activity: "Транспортировка нефти и нефтепродуктов",
     serviceStartDate: "12.04.2018",
     relation: "Нет связанности",
@@ -44,10 +47,10 @@ const MOCK_CLIENTS: Record<string, ClientData> = {
     payroll: "92 400 000 ₸",
     insurance: "АО «СК Евразия»",
     netProductIncome: "6 590 000 ₸",
-    rko: "1 240 000 ₸ / 8.4 млрд ₸",
-    doc: "320 000 ₸ / 12 операций",
-    credits: "4 200 000 ₸ / 1.8 млрд ₸",
-    dealing: "180 000 ₸ / 320 млн ₸",
+    rko: "1 240 000 ₸",
+    doc: "320 000 ₸",
+    credits: "4 200 000 ₸",
+    dealing: "180 000 ₸",
     acquiring: "—",
     corpCards: "92 000 ₸ / 18 карт",
     deposits: "1 850 000 ₸ / 4.2 млрд ₸",
@@ -58,6 +61,7 @@ const MOCK_CLIENTS: Record<string, ClientData> = {
     iinBin: "987654321098",
     category: "existing",
     fullName: "ИП Алимханов А.Б.",
+    firstManager: "Суриков Сергей Сергеевич",
     activity: "Оптовая торговля строительными материалами",
     serviceStartDate: "03.09.2021",
     relation: "Нет связанности",
@@ -65,9 +69,9 @@ const MOCK_CLIENTS: Record<string, ClientData> = {
     payroll: "14 800 000 ₸",
     insurance: "АО «Halyk Insurance»",
     netProductIncome: "1 524 000 ₸",
-    rko: "320 000 ₸ / 1.2 млрд ₸",
+    rko: "320 000 ₸",
     doc: "—",
-    credits: "180 000 ₸ / 80 млн ₸",
+    credits: "180 000 ₸",
     dealing: "—",
     acquiring: "240 000 ₸ / 380 млн ₸",
     corpCards: "24 000 ₸ / 4 карт",
@@ -81,6 +85,7 @@ const EMPTY_CLIENT: ClientData = {
   iinBin: "",
   category: "new",
   fullName: "",
+  firstManager: "",
   activity: "",
   serviceStartDate: "",
   relation: "Не выбрано",
@@ -296,7 +301,7 @@ function AppFlow() {
   const handleIinSubmit = (iin: string) => {
     const found = MOCK_CLIENTS[iin];
     if (found) {
-      setClient(found);
+      setClient({ ...found, staffCount: "", payroll: "" });
       setReadOnly(true);
     } else {
       setClient({ ...EMPTY_CLIENT, iinBin: iin, category: "new" });
@@ -842,17 +847,34 @@ function Field({
   children,
   className,
   labelClassName,
+  hint,
 }: {
   label: string;
   children: React.ReactNode;
   className?: string;
   labelClassName?: string;
+  hint?: string;
 }) {
-  return (
-    <div className={className}>
+  const content = (
+    <>
       <label className={`mb-2 block text-xs text-muted-foreground ${labelClassName ?? ""}`}>{label}</label>
       {children}
-    </div>
+    </>
+  );
+
+  if (!hint) {
+    return <div className={className}>{content}</div>;
+  }
+
+  return (
+    <TooltipProvider delayDuration={200}>
+      <Tooltip>
+        <TooltipTrigger asChild>
+          <div className={`${className ?? ""} cursor-help`}>{content}</div>
+        </TooltipTrigger>
+        <TooltipContent side="top">{hint}</TooltipContent>
+      </Tooltip>
+    </TooltipProvider>
   );
 }
 
@@ -1473,6 +1495,8 @@ function TariffRequestPage({
     [reviewQuestion],
   );
   const [briefJustification, setBriefJustification] = useState("");
+  const [staffCountInput, setStaffCountInput] = useState(client.staffCount);
+  const [payrollInput, setPayrollInput] = useState(client.payroll);
   const [tariffManualValues, setTariffManualValues] = useState<
     Record<string, { fix?: string; pct?: string; min?: string; max?: string }>
   >({});
@@ -1545,6 +1569,11 @@ function TariffRequestPage({
     }
   }, [readOnly, client.iinBin]);
 
+  useEffect(() => {
+    setStaffCountInput(client.staffCount);
+    setPayrollInput(client.payroll);
+  }, [client.iinBin, client.staffCount, client.payroll]);
+
   const b2 = useMemo(
     () =>
       computeBlock2TariffState(tariffCategory, validityMonths, discountInput, selected, rowDiscountInputs),
@@ -1554,6 +1583,7 @@ function TariffRequestPage({
     flowStage === "initiator" ||
     flowStage === "committeeInPerson" ||
     flowStage === "extraInfoRequest";
+  const initiatorStaffPayrollEditable = flowStage === "initiator";
   /** Редактирование строк тарифа и скидок по строкам — как на этапе инициатора */
   const block2TariffRowEditLikeInitiator =
     flowStage === "initiator" || flowStage === "extraInfoRequest";
@@ -1599,8 +1629,6 @@ function TariffRequestPage({
 
   const profitTone: "pos" | "neg" | undefined =
     b2.profit > 0 ? "pos" : b2.profit < 0 ? "neg" : undefined;
-  const profitStatus =
-    b2.profit > 0 ? "Положительная" : b2.profit < 0 ? "Отрицательная" : "Нулевая";
   const profitabilityPct = b2.sumForecast !== 0 ? (b2.profit / b2.sumForecast) * 100 : 0;
   const profitabilityPctDisplay = `${profitabilityPct > 0 ? "+" : ""}${formatPctRu(profitabilityPct)}%`;
   const monitoringPlusOneYearRu = (() => {
@@ -1728,21 +1756,30 @@ function TariffRequestPage({
                     disabled={readOnly}
                   />
                 </Field>
-                <Field label="Текущая тарифная категория">
-                  <Input
-                    readOnly
-                    disabled={readOnly}
-                    defaultValue="Тарифная категория D"
-                    aria-label="Текущая тарифная категория"
-                  />
-                </Field>
+                {client.category === "existing" && (
+                  <Field label="Текущая тарифная категория">
+                    <Input
+                      readOnly
+                      disabled={readOnly}
+                      defaultValue="Тарифная категория D"
+                      aria-label="Текущая тарифная категория"
+                    />
+                  </Field>
+                )}
               </div>
 
-              <div className="mt-4 grid grid-cols-1 gap-4 md:grid-cols-3">
+              <div className="mt-4 grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-4">
                 <Field label="Полное наименование клиента">
                   <Input
                     placeholder="ТОО / ИП / наименование клиента"
                     defaultValue={client.fullName}
+                    disabled={readOnly}
+                  />
+                </Field>
+                <Field label="Первый руководитель клиента">
+                  <Input
+                    placeholder="Суриков Сергей Сергеевич"
+                    defaultValue={client.firstManager}
                     disabled={readOnly}
                   />
                 </Field>
@@ -1770,11 +1807,27 @@ function TariffRequestPage({
                     <option>Нет связанности</option>
                   </Select>
                 </Field>
-                <Field label="Количество персонала">
-                  <Input placeholder="0" defaultValue={client.staffCount} disabled={readOnly} />
+                <Field
+                  label="Количество персонала"
+                  hint={initiatorStaffPayrollEditable ? "Заполняется вручную" : undefined}
+                >
+                  <Input
+                    placeholder="0"
+                    value={staffCountInput}
+                    onChange={(e) => setStaffCountInput(e.target.value)}
+                    disabled={!initiatorStaffPayrollEditable}
+                  />
                 </Field>
-                <Field label="Ежемесячный фонд заработной платы">
-                  <Input placeholder="0 ₸" defaultValue={client.payroll} disabled={readOnly} />
+                <Field
+                  label="Ежемесячный фонд заработной платы"
+                  hint={initiatorStaffPayrollEditable ? "Заполняется вручную" : undefined}
+                >
+                  <Input
+                    placeholder="0 ₸"
+                    value={payrollInput}
+                    onChange={(e) => setPayrollInput(e.target.value)}
+                    disabled={!initiatorStaffPayrollEditable}
+                  />
                 </Field>
                 <Field label="Обслуживающая страховая компания">
                   <Input
@@ -1788,28 +1841,28 @@ function TariffRequestPage({
               <div className="mt-4 grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-4">
                 <Field label="Чистый доход по продуктам">
                   <Input
-                    placeholder="Доход / объем"
+                    placeholder={client.category === "new" ? "Доход" : "Доход / объем"}
                     defaultValue={client.netProductIncome}
                     disabled={readOnly}
                   />
                 </Field>
                 <Field label="РКО">
                   <Input
-                    placeholder="Доход / объем"
+                    placeholder="Доход"
                     defaultValue={client.rko}
                     disabled={readOnly}
                   />
                 </Field>
                 <Field label="Документарные операции">
                   <Input
-                    placeholder="Доход / объем"
+                    placeholder="Доход"
                     defaultValue={client.doc}
                     disabled={readOnly}
                   />
                 </Field>
                 <Field label="Кредиты">
                   <Input
-                    placeholder="Доход / объем"
+                    placeholder="Доход"
                     defaultValue={client.credits}
                     disabled={readOnly}
                   />
@@ -1819,14 +1872,14 @@ function TariffRequestPage({
               <div className="mt-4 grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-4">
                 <Field label="Дилинг">
                   <Input
-                    placeholder="Доход / объем"
+                    placeholder="Доход"
                     defaultValue={client.dealing}
                     disabled={readOnly}
                   />
                 </Field>
                 <Field label="Эквайринг">
                   <Input
-                    placeholder="Доход / объем"
+                    placeholder="Доход"
                     defaultValue={client.acquiring}
                     disabled={readOnly}
                   />
@@ -2567,7 +2620,6 @@ function TariffRequestPage({
                 value={profitabilityPctDisplay}
                 tone={profitTone}
               />
-              <CalcRow label="Статус рентабельности РКО" value={profitStatus} tone={profitTone} />
 
             </aside>
             )}
